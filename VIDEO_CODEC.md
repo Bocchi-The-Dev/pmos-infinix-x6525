@@ -219,3 +219,35 @@ What this says about the design (still unconfirmed on the phone):
   (call at `0x17ef8`) and is the next function to read.
 - Registers 0x1000-0x1090 and 0x8000-0x8038 are the ones a `regs` dump from the phone should show
   structured values in.
+
+## Step 3, the per-picture programming sequence (`H264DecDecode_NALU`, disassembly; correction to the section above)
+The previous section guessed that decoding is driven by uploaded tables. That was only partly right:
+`VSP_TABLE_TRANSFER` runs once per stream setup (276 bytes copied from the library's read-only data into a
+0x3000-byte buffer, table id 0x12, via the DMA at `0x11a0`-`0x11ac`). The picture itself **is** set up
+through registers, in this order (`tools/vsp-reg-trace.py` extended to follow the `base + const + index`
+forms; function `H264DecDecode_NALU` at 0x17d60, ~0x20a4 bytes):
+
+| Step | Registers | Content |
+|------|-----------|---------|
+| 1 | `0x1028` = 0 | clear/disable interrupts |
+| 2 | `0x1088`, `0x108c`, `0x1090`, `0x10b0` | current picture buffer addresses, each `phys >> 4` (the debug dump reads `0x1088`/`0x108c`/`0x1090` back) |
+| 3 | `0x2400+4i`, `0x2500+4i`, `0x2580+4i`, `0x2600+4i`, `0x2680+4i` | per-reference-frame address arrays (`phys >> 4`), one entry per list index `i` (luma, chroma and related planes) |
+| 4 | `0x1034`-`0x107c` (19 words), `0x1160`-`0x1170`, `0x1180`-`0x1198` | packed picture/slice parameters built with `bfi`/`ubfiz` from the parsed SPS, PPS and slice header |
+| 5 | `0x1038` = `0xffffffff`, `0x1028` = 1, `0x1030` = `0xa` | enable interrupts, then **start** (`0x1030 = 0xa`) |
+| 6 | `VSP_POLL_COMPLETE` (ioctl `0x6d07`), `0x1028` = 0, read `0x1120` | wait for the interrupt, clear, read status |
+
+Examples of the packing in step 4 (field meanings are inferred from the H.264 syntax order and are
+not confirmed):
+- `0x103c` = `0x80000000 | (w9[6:0] << 25) | (x1[0x18][8:0] << 16) | x1[0x1c][15:0]`: two picture
+  dimension fields (probably height and width in macroblocks) plus a small field from the profile byte.
+- `0x1044`: bit 31 = profile is not 66 (not Baseline), bit 29 set when a flag at +0x78 or +0x7c is set,
+  low byte and bits 8-15 from two small values, bits 16-28 = a 13-bit field of the picture struct.
+- `0x1048`: a dense flag word: bits 5-9 and 0-4 are 5-bit values; 10-14 and 16 are single flag bits taken
+  from the SPS/PPS (frame_mbs_only, mbaff, direct_8x8_inference style flags); 17-18 and 19-20 are 2-bit
+  fields (profile/weighted-prediction style); 21-31 hold larger counts.
+- `0x104c` holds three 5-bit fields plus a 5-bit field at bit 15 (QP offsets and reference counts).
+- `0x1050`, `0x1054`, `0x1058` come straight from three 32-bit picture-struct words.
+
+What is still needed for a V4L2 stateless driver: naming each packed field against the
+`v4l2_ctrl_h264_sps/pps/slice_params/decode_params` controls (about 25 words, ~600 instructions to read),
+confirming the start/complete sequence on the phone, and the reference-frame addressing (step 3).

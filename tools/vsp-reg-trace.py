@@ -76,21 +76,38 @@ for line in open(sys.argv[1]):
             mm = re.match(r'\[(x\d+), #(-?0x[0-9a-f]+|-?\d+)\]$', a[1])
             st = state.get(norm(mm.group(1))) if mm else None
             if st and st[0] == 'reg':
-                rows[cur].append((addr, 'R', st[1] + num(mm.group(2)), None))
+                rows[cur].append((addr, 'R', st[1] + num(mm.group(2)), None, len(st) > 2 and st[2]))
             state.pop(norm(a[0]), None)
     elif op == 'add' and len(a) == 3:
-        d, s1, s2 = norm(a[0]), state.get(norm(a[1])), None
-        if s1 and s1[0] in ('base', 'reg'):
-            if a[2].startswith('#'):
-                v = num(a[2][1:])
-                s2 = ('const', v)
-            else:
-                s2 = state.get(norm(a[2]))
-            if s2 and s2[0] == 'const':
-                off = (s1[1] if s1[0] == 'reg' else 0) + (const_off(s2[1]) if const_off(s2[1]) is not None else s2[1])
-                state[d] = ('reg', off)
-            else:
-                state.pop(d, None)
+        d = norm(a[0])
+        s1 = state.get(norm(a[1]))
+        if a[2].startswith('#'):
+            s2 = ('const', num(a[2][1:]))
+        else:
+            s2 = state.get(norm(a[2]))
+        res = None
+        # BASE + const (either operand order), REG + const, const + const
+        for x, y in ((s1, s2), (s2, s1)):
+            if x and y and x[0] in ('base', 'reg') and y[0] == 'const':
+                off = (x[1] if x[0] == 'reg' else 0) + (const_off(y[1]) if const_off(y[1]) is not None else y[1])
+                res = ('reg', off, x[2] if len(x) > 2 else False)
+                break
+        # const + unknown index: keep the constant, mark the result as indexed
+        if res is None:
+            for x, y in ((s1, s2), (s2, s1)):
+                if x and x[0] == 'const' and const_off(x[1]) is not None and y is None:
+                    res = ('cidx', const_off(x[1]))
+                    break
+        # BASE/REG + cidx
+        if res is None:
+            for x, y in ((s1, s2), (s2, s1)):
+                if x and y and x[0] in ('base', 'reg') and y[0] == 'cidx':
+                    res = ('reg', (x[1] if x[0] == 'reg' else 0) + y[1], True)
+                    break
+        if res is None and s1 and s1[0] == 'cidx' and s2 is None:
+            res = s1
+        if res:
+            state[d] = res
         else:
             state.pop(d, None)
     elif op in ('str', 'strb', 'strh') and len(a) == 2:
@@ -101,11 +118,11 @@ for line in open(sys.argv[1]):
         if mm:
             st = state.get(norm(mm.group(1)))
             if st and st[0] == 'reg':
-                rows[cur].append((addr, 'W', st[1] + (num(mm.group(2)) if mm.group(2) else 0), v))
+                rows[cur].append((addr, 'W', st[1] + (num(mm.group(2)) if mm.group(2) else 0), v, len(st) > 2 and st[2]))
         elif mr:
             b, c = state.get(norm(mr.group(1))), state.get(norm(mr.group(2)))
             if b and c and b[0] == 'base' and c[0] == 'const' and const_off(c[1]) is not None:
-                rows[cur].append((addr, 'W', const_off(c[1]), v))
+                rows[cur].append((addr, 'W', const_off(c[1]), v, False))
     else:
         if a and op not in ('cmp', 'tst', 'b', 'cbz', 'cbnz', 'bl', 'ret', 'nop'):
             state.pop(norm(a[0]), None)
@@ -119,5 +136,5 @@ for fn, lst in rows.items():
     if want and want not in fn:
         continue
     print('== %s' % fn)
-    for addr, rw, off, v in lst:
-        print('  %s %s 0x%04x%s' % (addr, rw, off, '' if v is None else ' <- 0x%x' % v))
+    for addr, rw, off, v, idx in lst:
+        print('  %s %s 0x%04x%s%s' % (addr, rw, off, '+i' if idx else '', '' if v is None else ' <- 0x%x' % v))
