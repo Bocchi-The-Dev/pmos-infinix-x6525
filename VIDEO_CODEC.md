@@ -188,3 +188,34 @@ Offsets are from the VSP window base (0x32000000); the library's `0x6120xxxx` co
 
 The address written is `>> 4`, so buffers must be 16-byte aligned. Next: `H264Dec_Process_slice`,
 `H264DecDecode_NALU`, `H264Dec_init_picture` for the per-picture and reference-frame registers.
+
+## Step 3, register trace of the whole AVC library (`tools/vsp-reg-trace.py`, disassembly only)
+`tools/vsp-reg-trace.py` follows the `ldr x, [ctx]; add x, x, #const; str w, [x, #imm]` pattern that
+`vsp-reg-scan.py` cannot see. Run on `libomx_avcdec_hw_sprd.so` it finds 22 functions that touch the
+VSP window. Offsets from the window base (0x32000000); `0x73xx` rows in the raw output are fields of
+the library's own context, not hardware, and are ignored here.
+
+| Offsets | Where | What it is |
+|---------|-------|-----------|
+| `0x8008` (W), `0x8010` (R) | `show_bits`, `read_bits`, `long_ue_v`, `long_se_v`, `flush_left_byte` | bitstream module: write a command/bit count to 0x8008, read the result from 0x8010 |
+| `0x8024` (W) | `ue_v`, `se_v` | bitstream module: Exp-Golomb read command (result again via the read register) |
+| `0x8014` (R) | `uvlc_startcode_follows`, `ProcessPPS` | bitstream status ("more data" style check) |
+| `0x802c`, `0x8034`, `0x8038` (R) | `get_nalu_info`, `get_startcode_len` | NAL unit info: start-code length and size, filled by the hardware's start-code search |
+| `0x8000`/`0x8004`/`0x8008`, `0x1080`/`0x1084` | `cfg_bsm` | see above |
+| `0x1004` (W), `0x1008`/`0x100c`, `0x1020`, `0x1030`, `0x11a0`-`0x11ac` | `VSP_DMA_TRANSFER` | internal DMA that moves a table into the block: 0x11a0 = 0, 0x11a4/0x11a8/0x11ac = the three arguments (source, destination, length), then `0x1020 = 0x140 \| (arg4 << 4)` and `0x1030 = 1` start it; the library polls bit 8 of `0x100c` for completion (bounded at 0x3ffff reads), then writes `0x100`, and 7 to `0x1030 - ...` |
+| `0x1010` (W, `0xd0`) | `ARM_VSP_RST`, `H264DecDecode` | reset |
+| `0x1018` (W) | `VSP_RELEASE_Dev` | release |
+| `0x1028` (W) | `H264DecDecode_NALU`, `H264DecDecode`, debug | interrupt control |
+| `0x200`-`0x20c`, `0x10b8` | `VSP_SCALER_CFG` | scaler output setup |
+| `0x1088`, `0x108c`, `0x1090`, `0x1120` (R) | `printt_debug_register` | debug-only reads |
+
+What this says about the design (still unconfirmed on the phone):
+- The library does **not** write per-macroblock registers. Parsing goes through the hardware bit-reader
+  (0x8000 block). The picture and slice decode must therefore be driven by the block's own sequencer from
+  **tables uploaded by `VSP_TABLE_TRANSFER`/`VSP_DMA_TRANSFER`** (called once from `H264DecDecode`), not by
+  poking registers one at a time. The format of those tables is the thing to recover next.
+- So a V4L2 driver needs: the bitstream module sequence (documented above), the table upload, and the
+  table contents the stock library builds. The table-building code sits behind `H264DecDecode`
+  (call at `0x17ef8`) and is the next function to read.
+- Registers 0x1000-0x1090 and 0x8000-0x8038 are the ones a `regs` dump from the phone should show
+  structured values in.
