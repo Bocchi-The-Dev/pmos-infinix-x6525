@@ -1,0 +1,162 @@
+diff --git a/data/debayer.frag b/data/debayer.frag
+index a9fd0c8..1853fc8 100644
+--- a/data/debayer.frag
++++ b/data/debayer.frag
+@@ -33,9 +33,10 @@ main()
+     vec3 color = vec3(samples.x, (samples.y + samples.z) / 2.0, samples.w);
+     #endif
+ 
+-    color -= blacklevel;
++    color = max(vec3(0.0), color - blacklevel);
+     color *= color_matrix;
++    color = clamp(color, 0.0, 1.0);
+ 
+     vec3 gamma_color = pow(color, vec3(inv_gamma));
+-    gl_FragColor = vec4(gamma_color, 1);
++    gl_FragColor = vec4(gamma_color, 1.0);
+ }
+diff --git a/data/debayer_packed.frag b/data/debayer_packed.frag
+index de10180..fe54e52 100644
+--- a/data/debayer_packed.frag
++++ b/data/debayer_packed.frag
+@@ -51,9 +51,10 @@ main()
+     vec3 color = vec3(samples.x, (samples.y + samples.z) / 2.0, samples.w);
+     #endif
+ 
+-    color -= blacklevel;
++    color = max(vec3(0.0), color - blacklevel);
+     color *= color_matrix;
++    color = clamp(color, 0.0, 1.0);
+ 
+     vec3 gamma_color = pow(color, vec3(inv_gamma));
+-    gl_FragColor = vec4(gamma_color, 1);
++    gl_FragColor = vec4(gamma_color, 1.0);
+ }
+diff --git a/src/dcp.c b/src/dcp.c
+index 8855b68..996ce75 100644
+--- a/src/dcp.c
++++ b/src/dcp.c
+@@ -62,6 +62,17 @@ mread(const char *path, long *size_out)
+         return data;
+ }
+ 
++#include <sys/stat.h>
++
++static bool
++is_regular_file(const char *path)
++{
++        struct stat st;
++        if (stat(path, &st) != 0)
++                return false;
++        return S_ISREG(st.st_mode);
++}
++
+ bool
+ find_calibration_by_model(size_t maxlen,
+                           char *conffile,
+@@ -82,10 +93,10 @@ find_calibration_by_model(size_t maxlen,
+                  config_home,
+                  model,
+                  sensor);
+-        if (access(conffile, F_OK) != -1) {
+-                if (fch) {
+-                        free(config_home);
+-                }
++        if (fch) {
++                free(config_home);
++        }
++        if (is_regular_file(conffile)) {
+                 printf("Found calibration file at %s\n", conffile);
+                 return true;
+         }
+@@ -94,9 +105,10 @@ find_calibration_by_model(size_t maxlen,
+                                        SYSCONFDIR "/megapixels/config/%s,%s.dcp",
+                                        DATADIR "/megapixels/config/%s,%s.dcp",
+                                        NULL };
+-        for (const char *fmt = paths[0]; fmt; fmt++) {
++        for (int i = 0; paths[i] != NULL; i++) {
++                const char *fmt = paths[i];
+                 snprintf(conffile, maxlen, fmt, model, sensor);
+-                if (access(conffile, F_OK) != -1) {
++                if (is_regular_file(conffile)) {
+                         printf("Found calibration file at %s\n", conffile);
+                         return true;
+                 }
+diff --git a/src/gles2_debayer.c b/src/gles2_debayer.c
+index a43732e..51aa86e 100644
+--- a/src/gles2_debayer.c
++++ b/src/gles2_debayer.c
+@@ -231,7 +231,7 @@ gles2_debayer_configure(GLES2Debayer *self,
+         check_gl();
+ 
+         /* Color calibration curves and matrices */
+-        float gamma = 1.0f;
++        float gamma = 2.2f;
+         for (int i = 2; i < calibration.tone_curve_length; i += 2) {
+                 float g = calibration.tone_curve[i + 1] / calibration.tone_curve[i];
+                 if (g > gamma) {
+diff --git a/src/io_pipeline.c b/src/io_pipeline.c
+index 0879923..c3f8563 100644
+--- a/src/io_pipeline.c
++++ b/src/io_pipeline.c
+@@ -529,7 +529,14 @@ init_controls()
+         if (mp_camera_query_control(
+                     state_io.camera->sensor_fd, V4L2_CID_DIGITAL_GAIN, &dgain_control)) {
+                 state_io.dgain.control = dgain_control;
+-                state_io.dgain.min = dgain_control.min;
++                /*
++                 * Never let auto exposure push the digital gain below
++                 * unity (the control default). Some drivers (ov8856)
++                 * report min=0, which turns the image black.
++                 */
++                state_io.dgain.min = dgain_control.default_value > dgain_control.min ?
++                                             dgain_control.default_value :
++                                             dgain_control.min;
+                 state_io.dgain.max = dgain_control.max;
+         } else {
+                 state_io.dgain.max = 0;
+@@ -538,6 +545,11 @@ init_controls()
+         if (state_io.dgain.control.id) {
+                 state_io.dgain.value =
+                         mp_camera_control_get_int32(&state_io.dgain.control);
++                if (state_io.dgain.value < state_io.dgain.min) {
++                        mp_camera_control_set_int32(&state_io.dgain.control,
++                                                    state_io.dgain.min);
++                        state_io.dgain.value = state_io.dgain.min;
++                }
+         } else {
+                 state_io.dgain.value = 0;
+         }
+diff --git a/src/process_pipeline.c b/src/process_pipeline.c
+index 4e3fdd4..dd6a7f6 100644
+--- a/src/process_pipeline.c
++++ b/src/process_pipeline.c
+@@ -698,10 +698,7 @@ process_image_for_preview(const uint8_t *image)
+         mp_process_pipeline_buffer_ref(output_buffer);
+         mp_main_set_preview(output_buffer);
+ 
+-        if (framecounter++ == 2) {
+-                framecounter = 0;
+-                process_aaa();
+-        }
++        process_aaa();
+ 
+         // Create a thumbnail from the preview for the last capture
+         GdkTexture *thumb = NULL;
+@@ -1592,7 +1589,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+         }
+ 
+ 	exposure_limit = 0.01 / sec_per_line();
+-	printf("Exposure limit: %d\n", exposure_limit);
++	/*
++	 * sec_per_line() assumes the frame has no blanking and runs at 30 fps,
++	 * which badly underestimates the line time on sensors with large
++	 * blanking (s5k3l6: ~234 lines = 2.3 ms instead of 10 ms). Prefer
++	 * filling the whole frame time before raising the analog gain; the
++	 * frame length (and so exposure.max) is bounded by the mode's Rate.
++	 */
++	if (state_proc.exposure.max > exposure_limit)
++		exposure_limit = state_proc.exposure.max;
+ 
+         mp_state_main new_main = {
+                 .camera = pr_camera,
