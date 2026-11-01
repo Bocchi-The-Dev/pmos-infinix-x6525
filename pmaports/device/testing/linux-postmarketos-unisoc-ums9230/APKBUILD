@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=55
+pkgrel=56
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -106,6 +106,7 @@ source="
 	0063-i2c-sprd-preserve-ack-flag-across-threaded-isr.patch
 	0064-media-i2c-s5k3l6-fix-power-up-sequence-and-settling-.patch
 	0065-media-i2c-ov8856-retry-module-identification-and-in.patch
+	0066-arm64-dts-sprd-infinix-x6525-fix-camera-sensor-socke.patch
 "
 builddir="$srcdir/linux"
 
@@ -201,4 +202,5 @@ cfcbb1436f6061d40767c9b55eea8021fce9995d465be247204fd4518bfab04bb6c38f60e5033f5f
 763efaee8eec698fd21f2b6da3fd55bcc7411d12deef8d706aa02de66072f383945aee4c9f48fe927f5b4c60ca175e5a0c92187ba909b4e4f470b69570d0ec02  0063-i2c-sprd-preserve-ack-flag-across-threaded-isr.patch
 7c5772d4a458621e4108db8ba017bf8b33c2f87276dc1b589554404504fc96eff01f92188a929b312f6cd77209d0da4f160d585bea463d08fe9bbfed378208c1  0064-media-i2c-s5k3l6-fix-power-up-sequence-and-settling-.patch
 6315d7ef21dc623fd5a0303cdf638dbbbbe26889d472c193567c133bf4803cc2bbe1600dfae1d469f74f89b4b8f6879d991d8e606adf74f1b30aa7164256ceae  0065-media-i2c-ov8856-retry-module-identification-and-in.patch
+c5af09b86048a60c6012f1553cd4e3363857045789291d43613c62eda1ac630e261181cbbfdbfa0e13193b870de4b336b1fc54cae14737f8fc245ad06fa500fc  0066-arm64-dts-sprd-infinix-x6525-fix-camera-sensor-socke.patch
 "

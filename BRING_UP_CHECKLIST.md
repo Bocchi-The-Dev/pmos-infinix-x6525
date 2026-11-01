@@ -1038,22 +1038,24 @@ the hardware is; the two things that are per unit rather than per project are no
 ### 5.1 Camera
 
 Sockets as the running stock kernel has them, read from the live device tree (`/sys/firmware/fdt`;
-not kept in this repository - it carries the serial number):
+not kept in this repository - it carries the serial number) and verified against the vendor camera
+HAL (`libcamsensor.so`, `/odm/etc/sensor_config.xml`) and live I2C probing:
 
-| vendor node | bus | reg | 7-bit addr | phyid | reset | power-down | supplies | clock |
-|---|---|---|---|---|---|---|---|---|
-| `sensor-sub` (rear, S5K3L6) | i2c1 `200e0000` | 0x5a | 0x2d | 0 | ap_gpio 41 | ap_gpio 40 | vddcamio, vddcama1, vddcamd1 | CLK_SENSOR1 |
-| `sensor-main` (front, OV8856) | i2c0 `200d0000` | 0x20 | 0x10 | 2 | ap_gpio 44 | ap_gpio 46 | vddcamio, vddcama0, vddcamd0, vddcammot | CLK_SENSOR0 |
-| `sensor-main2` (`fakeserial`, decorative) | i2c1 `200e0000` | 0x20 | 0x10 | 3 | - | - | vddcama1 | CLK_SENSOR2 |
+| vendor node | slot | bus | DT placeholder `reg` | real 7-bit addr (`major_i2c_addr`) | vendor `phyid` | mainline port | reset | power-down | supplies | clock |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `sensor-main` (rear, S5K3L6) | 0 | i2c0 `200d0000` | `0x20` | `0x10` (`0x20` 8-bit) | `2` (`"2p2ro"`) | `CAMSYS_CSI_RO_M_S` (4-lane) | ap_gpio 44 | ap_gpio 46 | vddcamio (1.8V), vddcama0 (2.8V), vddcamd0 (1.05V), vddcammot | CLK_SENSOR0 (24 MHz) |
+| `sensor-sub` (front, OV8856) | 1 | i2c1 `200e0000` | `0x5a` | `0x36` (`0x6c` 8-bit) | `0` (`"4lane"`) | `CAMSYS_CSI_4LANE` (4-lane) | ap_gpio 41 | ap_gpio 40 | vddcamio (1.8V), vddcama1 (2.8V), vddcamd1 (1.2V) | CLK_SENSOR1 (19.2 MHz) |
+| `sensor-main2` (`fakeserial`, decorative) | 2 | i2c1 `200e0000` | `0x20` | `0x10` | `3` | - | - | - | vddcama1 | CLK_SENSOR2 |
 
-The vendor `reg` values are the 8-bit (write) form of the address; Linux wants the 7-bit one, hence
-the second column. There is no `sensor-sub2` client on this unit. The generic vendor overlay
-(`ums9230-1h10_go-overlay.dts`) has a different socket layout - it puts `sensor-sub` on i2c0 - so the
-live tree, not the overlay, is what the board DTS follows.
+The vendor DT `reg` values (`0x20` on `sensor-main`, `0x5a` on `sensor-sub`) are dummy placeholders:
+the stock Unisoc sensor driver (`sprd_sensor_drv.c`) registers an I2C client at the DT `reg`, and
+`libcamsensor.so` immediately overwrites `client->addr` at runtime via `SPRD_SENSOR_IO_SET_I2C_ADDR`
+(`0x4002520a`) using `major_i2c_addr >> 1` from each sensor library (`0x20 >> 1 = 0x10` in
+`libsensor_s5k3l6.so`, `0x6c >> 1 = 0x36` in `libsensor_ov8856_4lane.so`).
 
-`phyid` is the mainline camsys port number: 0 is `CAMSYS_CSI_4LANE`, 2 is `CAMSYS_CSI_M` (two lanes).
-The vendor driver's own CSI controller choice (`csi0`/`csi1` in the live tree) is not part of the
-mainline binding; the media graph selects a controller at stream time.
+In the vendor kernel (`receiver_r3p1/csi_driver.h`), `sprd,phyid = <0>` is `PHY_4LANE` (4-lane
+`CAMSYS_CSI_4LANE` in mainline) and `sprd,phyid = <2>` is `PHY_2P2RO` (4-lane combined RO M+S D-PHY,
+which mainline renumbered to `CAMSYS_CSI_RO_M_S = 4`). Both cameras use 4 MIPI data lanes.
 
 There is also a flash controller: `sprd,flash-ocp8137` on i2c5 at 0x63 (and `flash-aw36515` at 0x64
 in the live tree), with torch enable on ap_gpio 137 (confirmed from the stock device tree; exposed as the `white:flash` LED), other flash pins unconfirmed, and sync on 121. No mainline
