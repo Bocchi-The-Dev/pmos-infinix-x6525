@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=52
+pkgrel=53
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -98,6 +98,9 @@ source="
 	0055-usb-typec-sc27xx_pd-only-record-VBUS-state-after-the.patch
 	0056-power-bq2415x-give-the-OTG-regulator-the-REGULATOR_C.patch
 	0057-remoteproc-sprd_modem-pass-the-modem-its-part-of-the.patch
+	0058-power-bq2415x-set-OTG-regulator-enable_time-and-igno.patch
+	0059-usb-typec-sc27xx_pd-poll-for-VBUS-off-when-unpowered.patch
+	0060-usb-musb-sprd-disconnect-root-hub-when-leaving-host-.patch
 "
 builddir="$srcdir/linux"
 
@@ -185,4 +188,7 @@ a89c00cd82d41bd5d7c85425578c6f6c1b800325eae91ad41beca6eb2e79becd72869c1bd370d65c
 2afc0355d43c8f4b5ffddaab6da838d6ed9862a57327e4a476bd0fd64630da527f20021ebc68da1606ad9fb9955132a36ce0e38e551c3124246a638c972f5f98  0055-usb-typec-sc27xx_pd-only-record-VBUS-state-after-the.patch
 caf3d6ea2cf5d54ddb7c721952589e2e08e0e09c0b294ded3b314fd1065999303c18405d4f7e52cf873125d5d9ed767c77e12e919f4903621a1fad09c273ec37  0056-power-bq2415x-give-the-OTG-regulator-the-REGULATOR_C.patch
 c15160544f678d5e97170910f60624fa6823d0a976e25aee06951d092febf23ee879142e59d1d39070d39597c8d5a2f973af4b21d21f0581c6ead68f4e7dc775  0057-remoteproc-sprd_modem-pass-the-modem-its-part-of-the.patch
+5d83edbfefde8147edc744c26478b1eef6d4e1c15d2c2d6eaf92a3613d370dfc2d0a860ab74384e1e418957617708912e762aeb0a768980b6bc2363a088c83f8  0058-power-bq2415x-set-OTG-regulator-enable_time-and-igno.patch
+3080c7dc32d8e14a48eeb470cbca6a3117c9601ff2214e9b193e736b8822ca3bf61b3bc2864f00a1f0b7e4a80feaf907f48803ca6adbf232eddc4413fdc31a1f  0059-usb-typec-sc27xx_pd-poll-for-VBUS-off-when-unpowered.patch
+3b446eda88691b4fb170c641cdb69abcdc4347dfa30752c5d00293cedb407b42236cc2a20c57c3fbe9abc325607d9e311fe74445c7cab8d1df7d1a021664f777  0060-usb-musb-sprd-disconnect-root-hub-when-leaving-host-.patch
 "
