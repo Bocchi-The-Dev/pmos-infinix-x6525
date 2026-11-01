@@ -251,3 +251,47 @@ not confirmed):
 What is still needed for a V4L2 stateless driver: naming each packed field against the
 `v4l2_ctrl_h264_sps/pps/slice_params/decode_params` controls (about 25 words, ~600 instructions to read),
 confirming the start/complete sequence on the phone, and the reference-frame addressing (step 3).
+
+## Step 3, the parser structs of the stock AVC library (offsets fixed by the H.264 syntax order)
+
+`H264Dec_ProcessSPS`, `H264Dec_ProcessPPS` and `H264Dec_RestSliceHeader` store each parsed element
+at a fixed struct offset. The parse order is the order of the H.264 syntax (`read_bits`/`ue_v`/`se_v`
+calls in the disassembly), so the names below follow from the specification, not from guesses. This is
+what a V4L2 stateless driver receives as `v4l2_ctrl_h264_sps/pps/slice_params` and has to rebuild.
+
+**SPS struct** (`[ctx + 0x1b8]` is the active SPS; offsets in bytes):
+
+| Off | Element | Off | Element |
+|-----|---------|-----|---------|
+| 0x01 | profile_idc | 0x1a | frame_mbs_only_flag |
+| 0x02-0x07 | constraint_set0..5_flag | 0x1b | mb_adaptive_frame_field_flag |
+| 0x09 | level_idc | 0x1c | direct_8x8_inference_flag |
+| 0x0a | seq_parameter_set_id | 0x1e (u16) | pic_width_in_mbs_minus1 |
+| 0x0b | log2_max_frame_num_minus4 | 0x18 (u16) | pic_height_in_map_units_minus1 |
+| 0x0c | pic_order_cnt_type | 0x20 | frame_cropping_flag |
+| 0x0d | delta_pic_order_always_zero_flag (poc type 1) | 0x21 | vui_parameters_present_flag |
+| 0x0e | max_num_ref_frames | 0x22 | seq_scaling_matrix_present_flag |
+| 0x0f | gaps_in_frame_num_value_allowed_flag | 0x23 | chroma_format_idc |
+| 0x10 / 0x14 (s32) | offset_for_non_ref_pic / offset_for_top_to_bottom_field | 0x24 / 0x25 | bit_depth_luma/chroma_minus8 |
+| 0x164 | num_ref_frames_in_pic_order_cnt_cycle | 0x26 | qpprime_y_zero_transform_bypass_flag |
+| 0x570-0x57c | frame_crop left/right/top/bottom offsets | | |
+
+**PPS struct:** 0x01 pic_parameter_set_id, 0x02 seq_parameter_set_id, 0x11 entropy_coding_mode_flag
+(CABAC), 0x03 bottom_field_pic_order_in_frame_present_flag, 0x04 num_slice_groups_minus1,
+0x06/0x07 num_ref_idx_l0/l1_default_active_minus1, 0x08 weighted_pred_flag, 0x09 weighted_bipred_idc,
+0x0a pic_init_qp_minus26, 0x0b pic_init_qs_minus26, 0x0c chroma_qp_index_offset,
+0x0d second_chroma_qp_index_offset, 0x0e deblocking_filter_control_present_flag,
+0x0f constrained_intra_pred_flag, 0x10 redundant_pic_cnt_present_flag, 0x12 transform_8x8_mode_flag,
+0x13 pic_scaling_matrix_present_flag.
+
+**Slice header** (`[ctx + 0x318]`): 0x58 frame_num, 0x5c field_pic_flag, 0x60 bottom_field_flag,
+0x6c pic_order_cnt_lsb, 0x70 delta_pic_order_cnt_bottom, 0x74/0x78 delta_pic_order_cnt[0]/[1],
+0x0e redundant_pic_cnt, 0x07 direct_spatial_mv_pred_flag, 0x00/0x01 num_ref_idx_l0/l1_active_minus1,
+the pred_weight_table around 0x2d0-0x3d8 and 0x354, and `dec_ref_pic_marking` at 0x34.
+
+**Not the slice header:** the pointer `x27` in `H264DecDecode_NALU` is `ctx + 0x16870`, a block of its own
+that another function fills before the registers are written (slice type at +0xf8, plus the many
+5-bit/1-bit values that go into `0x1048`-`0x104c`). Naming those fields needs the writer of that block, so
+the per-word field names above for `0x1044`-`0x104c` stay unconfirmed until it is read. The SPS-sourced
+words are the exception: `0x103c` takes `profile_idc` (SPS `+0x1`) in bits 25-31, and the Baseline test
+for bit 31 of `0x1044` compares the same byte with 66.
