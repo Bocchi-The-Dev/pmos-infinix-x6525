@@ -2,8 +2,7 @@
 
 This is the checklist for the **mainline route** (U-Boot chainloaded from `boot_a`, then the
 `linux-postmarketos-unisoc-ums9230` kernel with `dts/ums9230-infinix-x6525.dts`; the boot filesystem
-goes in the eMMC's `cache` partition and the root filesystem in `userdata`, or both on a microSD card
-instead). The 5.4 route has its own steps at the end of `NOTES.md`. **Where the bring-up is:** the
+goes in the eMMC's `cache` partition and the root filesystem in `userdata`). The 5.4 route has its own steps at the end of `NOTES.md`. **Where the bring-up is:** the
 boot chain, the rootfs, SSH over the USB link, the touchscreen and Wi-Fi all work (Wi-Fi verified
 2026-10-21 by pinging, running `apk update`/`upgrade` and installing a package), and a GUI image
 boots (Phosh, 2026-10-24; the workflow now builds Plasma Mobile, see BRING_UP_CHECKLIST 3). Bluetooth is fixed in the tree - the transport's two
@@ -38,7 +37,8 @@ it needs. If it ever fails to fetch, the same file sits in `firmware/` and can b
 `/lib/firmware/postmarketos/sprd/` by hand.
 
 The rest of this file is the flash procedure and then the boot, stage by stage. Only one write goes
-into the phone's own storage - U-Boot, into `boot_a`; the rootfs is written to a microSD card.
+into the phone's own storage - U-Boot into `boot_a`, the boot filesystem into `cache` and the root
+filesystem into `userdata`.
 
 ## Building it on GitHub instead
 
@@ -58,9 +58,9 @@ writes the config file init would have written and points pmbootstrap at it with
   the phone as well: `boot.img.xz` in Downloads is the same image at 16 MB, and the only other copy
   lives on the device being flashed. Note that a plain reboot does **not** go back to Android once
   `boot_a` holds U-Boot - restoring the image is what does that.
-- `fastboot getvar current-slot` - the port flashes the *current* slot. The only eMMC write is the
-  boot image, to `boot_a`; the rootfs goes to a microSD card (see [Flashing](#flashing)), so Android
-  and its data are left alone.
+- `fastboot getvar current-slot` - the port flashes the *current* slot. The boot image goes to
+  `boot_a`; the boot and root filesystems go to `cache` and `userdata` (see [Flashing](#flashing)),
+  which overwrites Android's data. Its system (`super`) and the other slot are left alone.
 - **How to take that backup** - the stock fastboot cannot read partitions, so use one of: a rooted Android
   (`adb shell su -c 'dd if=/dev/block/by-name/boot_a of=/sdcard/boot_a.img'`, same for the others), or
   `spd_dump` in download mode (`read_part boot_a 0 <size> boot_a.img`). Check the file is the partition's
@@ -91,78 +91,16 @@ writes the config file init would have written and points pmbootstrap at it with
 
 ## Flashing
 
-The microSD route first (see the eMMC route after it for why it may not work). Two writes: U-Boot
-into the phone, the disk image onto a microSD card (2 GB or more; the image is 1.3 GB). pmbootstrap
-does both natively - `--sdcard` is an alias of `--disk`, which writes to the block device instead of
-producing an image file, and `flasher flash_kernel` resolves to
-`fastboot flash $deviceinfo_flash_fastboot_partition_kernel`, which this port sets to `boot_a`:
-
-```sh
-pmbootstrap install --sdcard=/dev/sdX    # /dev/sdX = the card, not a partition
-pmbootstrap flasher flash_kernel         # with the phone in fastboot mode
-```
-
-This route needs a local, *unsplit* install, and does the two writes by hand. The `rom` workflow
-builds a split install instead (two filesystem images for the eMMC partitions, see below), so its
-artifact holds no whole-disk image to copy. Here `<out>` is `/tmp/postmarketOS-export/` after a local
-`pmbootstrap export`; with the phone in fastboot mode (`fastboot devices` lists it):
-
-```sh
-fastboot flash boot_a <out>/boot.img
-dd if=<out>/infinix-x6525.img of=/dev/sdX bs=4M conv=fsync    # /dev/sdX = the card, not a partition
-```
-
-- The card is written **whole**, because the image carries its own partition table: an extended-boot
-  partition holding `/extlinux/extlinux.conf`, `/vmlinuz`, `/initramfs` and the DTB, and the root
-  filesystem. The initramfs finds both by the filesystem UUIDs baked into the extlinux command line
-  (`pmos_boot_uuid`/`pmos_root_uuid`, written by boot-deploy from the image's own fstab), and those
-  travel with a copied image, so it boots the same way from the card as it would from anything else.
-- Both routes write the same bytes: `--sdcard` puts on the card exactly what `dd`-ing the exported
-  image would, and `flasher flash_kernel` is the same `fastboot flash boot_a boot.img`.
-- Do **not** run `pmbootstrap flasher flash_rootfs`. It would write the whole 1.36 GB disk image into
-  the phone's `super` partition, and U-Boot cannot see a partition table nested inside a partition
-  (`drivers/block/blk-uclass.c`: `part_create_block_devices()` returns early unless the device is
-  `UCLASS_BLK`, and a partition is `UCLASS_PARTITION`). It would find no bootflow and sit at the
-  U-Boot prompt - that is what the earlier procedure did.
-- Nothing else on the eMMC is written: Android and its data stay where they are, and
-  `fastboot flash boot_a <backup boot.img>` is the way back.
-- The image is smaller than any current card, so the copy leaves the backup GPT 1 MB from the image's
-  end rather than the card's. That is harmless - the kernel tolerates a smaller disk's protective MBR
-  on a larger one on purpose, "to support dd'ing an image from a smaller disk to a larger disk"
-  (`block/partitions/efi.c`) - and `sgdisk -e /dev/sdX` afterwards only tidies the backup copy.
-- Insert the card, then plug in the USB cable **before** powering on: the initramfs brings the USB
-  gadget up once, about two seconds in, and never retries (see 4).
-
-### Flashing to the eMMC instead (recommended for a first boot)
-
-The microSD route has an assumption nothing has tested: that U-Boot can see the card at all. The slot's
-supply rails (`vddsdcore`, `vddsdio`) are LDOs of the SC2730 PMIC, and U-Boot has no PMIC or regulator
-driver (`configs/infinix-x6525_defconfig` has no `DM_REGULATOR`/`DM_PMIC`; `sdhci-sprd.c` handles no
-supplies). In the stock dump both rails are *disabled* while no card is in use, so unless the stock
-bootloader leaves them on, the slot is unpowered when U-Boot looks and the boot ends at the prompt. The
-eMMC has no such problem: its rail is on from power-up, and it is what U-Boot already reads.
-
-### Storage variants: eMMC and UFS
-
-The X6525 shipped with either eMMC or UFS, and this port is eMMC-only today:
-
-- U-Boot is built without any UFS driver (`uboot/configs/infinix-x6525_defconfig` drops
-  `CMD_UFS`/`SCSI`/`UFS`/`UFS_SPRD_UMS9230`), so on a UFS unit it cannot read the `cache`
-  partition and the phone stops at the U-Boot prompt. The kernel does build the controller in
-  (`CONFIG_SCSI_UFS_SPRD=y`), and the initramfs would find the root by UUID, but the boot never
-  reaches the kernel.
-- Flashing the eMMC images into a UFS unit writes the partitions fastboot is given and nothing
-  else; it does not touch the storage hardware, and the stock bootloader and fastboot stay
-  available for recovery. The image simply will not boot.
-- Check the unit before flashing: in the stock bootloader or Android, `cat /proc/cmdline`
-  names the boot device - the unit this port was developed on says `sprdboot.flash=emmc`, and a
-  UFS unit names its UFS controller there (and in `androidboot.boot_devices`).
-- Support for both in one image needs U-Boot's UFS driver, a UFS node in the board U-Boot DTS and
-  `&ufs` enabled in the kernel DTS; the kernel side is already configured. Nothing has been tested
-  against a UFS unit, so do not flash one until that is done.
+Three writes, all into the phone's own eMMC: U-Boot into `boot_a`, the boot filesystem into `cache`
+and the root filesystem into `userdata`. `pmbootstrap flasher flash_kernel` is the first of them
+(`fastboot flash $deviceinfo_flash_fastboot_partition_kernel`, which this port sets to `boot_a`).
+Do **not** run `pmbootstrap flasher flash_rootfs`: it would write the whole disk image into the
+phone's `super` partition, which U-Boot cannot read (the reason is just below).
 
 U-Boot cannot read a partition table nested inside an eMMC partition, so a whole-disk image cannot go
-there. The `rom` workflow therefore builds a *split* install (`pmbootstrap install --split`): the boot
+there (`drivers/block/blk-uclass.c`: `part_create_block_devices()` returns early unless the device is
+`UCLASS_BLK`, and a partition is `UCLASS_PARTITION`; U-Boot would find no bootflow and sit at its
+prompt). The `rom` workflow therefore builds a *split* install (`pmbootstrap install --split`): the boot
 and root filesystems are formatted as images of their own, with no partition table, and those are
 flashed into two eMMC partitions. That is also why the build needs no loop partition devices, only
 whole ones:
@@ -208,6 +146,25 @@ fastboot flash userdata <out>/pmos-root-fs.img    # pmOS_root
   shrinking anything: U-Boot scans every partition of the eMMC for a bootflow, so the name does not
   matter.
 
+### Storage variants: eMMC and UFS
+
+The X6525 shipped with either eMMC or UFS, and this port is eMMC-only today:
+
+- U-Boot is built without any UFS driver (`uboot/configs/infinix-x6525_defconfig` drops
+  `CMD_UFS`/`SCSI`/`UFS`/`UFS_SPRD_UMS9230`), so on a UFS unit it cannot read the `cache`
+  partition and the phone stops at the U-Boot prompt. The kernel does build the controller in
+  (`CONFIG_SCSI_UFS_SPRD=y`), and the initramfs would find the root by UUID, but the boot never
+  reaches the kernel.
+- Flashing the eMMC images into a UFS unit writes the partitions fastboot is given and nothing
+  else; it does not touch the storage hardware, and the stock bootloader and fastboot stay
+  available for recovery. The image simply will not boot.
+- Check the unit before flashing: in the stock bootloader or Android, `cat /proc/cmdline`
+  names the boot device - the unit this port was developed on says `sprdboot.flash=emmc`, and a
+  UFS unit names its UFS controller there (and in `androidboot.boot_devices`).
+- Support for both in one image needs U-Boot's UFS driver, a UFS node in the board U-Boot DTS and
+  `&ufs` enabled in the kernel DTS; the kernel side is already configured. Nothing has been tested
+  against a UFS unit, so do not flash one until that is done.
+
 ## 1. U-Boot starts
 
 Expect: after the bootloader hands over, the screen shows U-Boot's text console (white on black) and
@@ -232,10 +189,10 @@ mmc dev 0        # the board device tree aliases the eMMC (sdio3) as mmc0, so it
 part list mmc 0  # if mmc list shows something else first, use the number it prints
 ```
 
-Expect two devices. The eMMC still carries Android's stock partition table - this route does not
-touch it - while the microSD is the pmOS one: an extended-boot partition holding `/extlinux`, and
-the Linux root. `bootcmd` is `bootflow scan -lb mmc` (from `board/unisoc/ums9230/infinix-x6525.env`), so
-U-Boot looks on both and boots the card.
+Expect the eMMC with Android's stock partition table, in which `cache` (the pmOS boot filesystem:
+`/extlinux`, kernel, initramfs, DTB) and `userdata` (the root) now hold the images you flashed.
+`bootcmd` is `bootflow scan -lb mmc` (from `board/unisoc/ums9230/infinix-x6525.env`), so U-Boot
+scans the eMMC's partitions and boots the extlinux entry it finds.
 - **The eMMC is slow (DDR52, tens of MB/s):** expected, not a fault. `sdhci-sprd` keeps
   `SDHCI_QUIRK2_BROKEN_HS200` set for `sprd,sdhci-r11`, and the core clears `MMC_CAP2_HS200` for it -
   HS400 is gated behind HS200, so the HS200/HS400 flags the DTS declares never take effect.
@@ -244,14 +201,6 @@ U-Boot looks on both and boots the card.
   name here, is the microSD slot's IO rail), so the remaining suspect is the delay *tuning*: drop
   `sprd,phy-delay-mmc-ddr52` to fall back to the driver's defaults, or force `bus-width = <4>`, and
   see if the errors move.
-- **SD card not seen:** card-detect. The DTS uses `eic_sync 35` (confirmed on the stock system; the empty slot
-  reads high, so the flag is ACTIVE_LOW - check with a card in). `CONFIG_MMC_BROKEN_CD` is set in U-Boot, so U-Boot itself does not care; the
-  kernel does. Test with a card in and out and read `cat /sys/kernel/debug/gpio`.
-  If *U-Boot* does not list the card at all in `mmc list`, the slot's rails are the suspect: U-Boot has no
-  driver for this PMIC's regulators and `sdhci-sprd.c` touches no supplies, so it can only use what the stock
-  bootloader left powered - the reeder's board is in exactly the same position, so this is the design, not a
-  fault in the board files. The kernel powers the slot itself, but a bootflow cannot start from a card U-Boot
-  cannot read: report it. The eMMC does not share this risk (Android boots from it; its rails are already on).
 
 ## 3. Kernel starts, and how to see it
 
@@ -436,7 +385,7 @@ and both work here because `evdev` is in the initramfs (pmOS ships it in `00-def
 
 If neither key does anything, the keys themselves are the suspect, not the lever.
 
-If **U-Boot** finds no bootflow (card missing or unreadable), the phone stops there, and what you
+If **U-Boot** finds no bootflow (the `cache` image missing or unreadable), the phone stops there, and what you
 can do about it depends on whether a UART is attached. The board environment sets
 `stdin=serial` and `stdout`/`stderr` = `serial,vidconsole`, so U-Boot's output goes to the screen
 *and* the UART, and its only input is the serial port (a display with no keyboard driver is not an
@@ -444,12 +393,12 @@ input device). **With a UART attached you get a full U-Boot prompt**, enough to 
 by hand or to reach the stock fastboot. (A `boot.img` built before `39bf351` still has the Reeder
 environment: screen-only output, so you would type blind.)
 
-Without one: hold the power key to turn the phone off, insert the card, and try again - or leave
-the card out and go to the stock fastboot (`spd_dump` reboot-to-fastboot), where `fastboot flash boot_a`
-still works.
+Without one: hold the power key to turn the phone off and go to the stock fastboot (`spd_dump`
+reboot-to-fastboot), where `fastboot flash boot_a` and re-flashing `cache` and `userdata` still work.
 
-The lever that does not depend on the keys is `pmos.debug-shell` in the card's
-`/extlinux/extlinux.conf`: mount the card on any PC, add it to the `append` line, put the card back.
+The lever that does not depend on the keys is `pmos.debug-shell` in the boot image's
+`/extlinux/extlinux.conf`: mount `pmos-boot-fs.img` on any PC (`mount -o loop`), add it to the
+`append` line, and flash it to `cache` again.
 The initramfs then opens a shell unconditionally - and stops there until `pmos_continue_boot` is run
 in it, which is why it is not on the default command line: if USB never comes up, a boot carrying it
 would wait forever at a shell nobody can reach.

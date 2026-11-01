@@ -20,7 +20,7 @@ exercised on the phone yet - BRING_UP_CHECKLIST.md 2.1 has the checks.
 how to build the image either here or on GitHub. The `rom` workflow builds a *split* install (a boot
 filesystem image and a root filesystem image, no partition table), which are flashed into real eMMC
 partitions (`cache` and `userdata` - the route in
-FIRST_BOOT.md). A local *unsplit* install can also write the whole disk image to a microSD card.
+FIRST_BOOT.md).
 `pmbootstrap flasher flash_rootfs` must not be run: it writes the root filesystem image into
 `super`, which U-Boot does not read and which belongs to Android. **eMMC units only:** the X6525
 also shipped with UFS, and this image does not boot on those (U-Boot has no UFS driver; see
@@ -45,8 +45,7 @@ the latest green **rom** run (Actions → rom → Run workflow).
 
 **1. Flash.** Three writes: U-Boot into `boot_a`, the boot filesystem (kernel, initramfs, DTB,
 extlinux) into `cache`, the root filesystem into `userdata`. This overwrites Android's data; `super`
-and `boot_b` are left alone. The other route (a microSD card) is in [FIRST_BOOT.md](FIRST_BOOT.md)'s
-*Flashing* section.
+and `boot_b` are left alone. [FIRST_BOOT.md](FIRST_BOOT.md)'s *Flashing* section has the details.
 
 ```sh
 # in the extracted x6525-rom directory, with the phone in fastboot mode

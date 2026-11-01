@@ -1494,7 +1494,7 @@ sh tools/patch-cmdline.sh pmos-boot-fs.img sdhci_sprd.enable_hs200=1
 ```
 
 Then flash `pmos-boot-fs.img` to `cache` and boot. To undo, use `--remove` with the same option.
-Keep the microSD image or a debug shell path available: if the link trains badly, the rootfs may not
+Keep a debug shell path available: if the link trains badly, the rootfs may not
 mount, and the fix is to remove the option from the extlinux `append` line (or reflash the boot
 image).
 
