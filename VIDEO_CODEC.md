@@ -236,17 +236,8 @@ forms; function `H264DecDecode_NALU` at 0x17d60, ~0x20a4 bytes):
 | 5 | `0x1038` = `0xffffffff`, `0x1028` = 1, `0x1030` = `0xa` | enable interrupts, then **start** (`0x1030 = 0xa`) |
 | 6 | `VSP_POLL_COMPLETE` (ioctl `0x6d07`), `0x1028` = 0, read `0x1120` | wait for the interrupt, clear, read status |
 
-Examples of the packing in step 4 (field meanings are inferred from the H.264 syntax order and are
-not confirmed):
-- `0x103c` = `0x80000000 | (w9[6:0] << 25) | (x1[0x18][8:0] << 16) | x1[0x1c][15:0]`: two picture
-  dimension fields (probably height and width in macroblocks) plus a small field from the profile byte.
-- `0x1044`: bit 31 = profile is not 66 (not Baseline), bit 29 set when a flag at +0x78 or +0x7c is set,
-  low byte and bits 8-15 from two small values, bits 16-28 = a 13-bit field of the picture struct.
-- `0x1048`: a dense flag word: bits 5-9 and 0-4 are 5-bit values; 10-14 and 16 are single flag bits taken
-  from the SPS/PPS (frame_mbs_only, mbaff, direct_8x8_inference style flags); 17-18 and 19-20 are 2-bit
-  fields (profile/weighted-prediction style); 21-31 hold larger counts.
-- `0x104c` holds three 5-bit fields plus a 5-bit field at bit 15 (QP offsets and reference counts).
-- `0x1050`, `0x1054`, `0x1058` come straight from three 32-bit picture-struct words.
+The packing of step 4 is decoded properly in the next sections (the guesses that stood here were
+partly wrong and have been replaced).
 
 What is still needed for a V4L2 stateless driver: naming each packed field against the
 `v4l2_ctrl_h264_sps/pps/slice_params/decode_params` controls (about 25 words, ~600 instructions to read),
@@ -289,9 +280,53 @@ what a V4L2 stateless driver receives as `v4l2_ctrl_h264_sps/pps/slice_params` a
 0x0e redundant_pic_cnt, 0x07 direct_spatial_mv_pred_flag, 0x00/0x01 num_ref_idx_l0/l1_active_minus1,
 the pred_weight_table around 0x2d0-0x3d8 and 0x354, and `dec_ref_pic_marking` at 0x34.
 
-**Not the slice header:** the pointer `x27` in `H264DecDecode_NALU` is `ctx + 0x16870`, a block of its own
-that another function fills before the registers are written (slice type at +0xf8, plus the many
-5-bit/1-bit values that go into `0x1048`-`0x104c`). Naming those fields needs the writer of that block, so
-the per-word field names above for `0x1044`-`0x104c` stay unconfirmed until it is read. The SPS-sourced
-words are the exception: `0x103c` takes `profile_idc` (SPS `+0x1`) in bits 25-31, and the Baseline test
-for bit 31 of `0x1044` compares the same byte with 66.
+## Step 3, the parameter block and the first packed words (`H264DecDecode_NALU`, 0x1844c-0x1864c)
+
+**Pointers.** `x8` = active SPS (`[ctx+0x1b8]`), `x28` = active PPS (`[ctx+0x1c0]`, first reused as the
+register base `0x61201028` later), `x22` = `[ctx+0x320]` (the first part of the slice header: `+0x3` slice type,
+`+0x13c` first_mb_in_slice, `+0x140` pps_id), `x17` = `[ctx+0x318]` (the slice header of the section above),
+`x27` = `ctx + 0x16870` (the **parameter block**, filled here, then packed into registers). The register stores
+are `0x61201028 + imm`, so `#0x1c` is `0x1044`, `#0x20` is `0x1048`, and so on.
+
+**Slice type** is remapped before use: `w20 = 0` I (and SI/SP), `1` P, `2` B.
+
+**The parameter block** (offset: source). Certain = taken straight from a named SPS/PPS element; inferred = from
+the position in the slice header or by use:
+
+| Block | Source | Meaning |
+|-------|--------|---------|
+| +0x00 | `x22[3]` | slice type (0 I, 1 P, 2 B), certain |
+| +0x08 | PPS+0x0f | constrained_intra_pred_flag, certain |
+| +0x0c | slice+0x07 | direct_spatial_mv_pred_flag, certain |
+| +0x10 | SPS+0x1c | direct_8x8_inference_flag, certain |
+| +0x14 | `x22[1]` | slice QP (also passed to `init_contexts` for CABAC), inferred |
+| +0x18 / +0x1c | PPS+0x0c / +0x0d | chroma_qp_index_offset / second_chroma_qp_index_offset, certain |
+| +0x20 | `x22[0x139]` | disable_deblocking_filter_idc, inferred |
+| +0x24 | PPS+0x09 | weighted_bipred_idc, certain |
+| +0x2c / +0x34 | slice+0 / slice+1, each limited to the default count of another struct | num_ref_idx_l0 / l1 active, inferred |
+| +0x78 / +0x7c | SPS+0x22 / PPS+0x13 | seq / pic_scaling_matrix_present_flag, certain |
+| +0x80 | PPS+0x08 | weighted_pred_flag, certain |
+| +0x90 / +0x94 | `x22[0x13a]` / `x22[0x13b]` | slice_alpha_c0_offset_div2 / slice_beta_offset_div2, inferred |
+| +0xa0 / +0xa4 | PPS+0x12 / PPS+0x11 | transform_8x8_mode_flag / entropy_coding_mode_flag (CABAC), certain |
+| +0xa8 | slice+1 | num_ref_idx_l1_active_minus1, inferred |
+| +0xac | SPS+1 != 66 | "not Baseline", certain |
+| +0xb4 | slice+0x64/+0x68 | picture structure: 0 frame, 1 MBAFF, 2+ field, inferred |
+| +0xf8 | `ctx+0x16968` (set in `H264DecDecode`) | slice type of the current picture, inferred |
+
+**Registers decoded so far** (field order and widths are certain, the meaning of a field is certain where its
+source is "certain" above):
+
+| Register | Layout |
+|----------|--------|
+| `0x103c` | bit 31 set; bits 31-25 = slice QP (`x22[1]`, 7 bits); bits 24-16 = `slice+0x18` (9 bits); bits 15-0 = `slice+0x1c` |
+| `0x1044` | 31 = profile is not Baseline; 29 = scaling matrix present (SPS or PPS); 28-16 = first_mb_in_slice (13 bits); 15-8 = first MB row, 7-0 = first MB column (after the division by the picture width in MBs, MBAFF-aware) |
+| `0x1048` | 15 = explicit weighted prediction in use for this slice (P with weighted_pred, or B with weighted_bipred); 20-19 = disable_deblocking_filter_idc; 18-17 = weighted_bipred_idc; 16 = weighted_pred_flag; 14 = CABAC; 13 = transform_8x8_mode; 12 = direct_8x8_inference; 11 = direct_spatial_mv_pred; 10 = constrained_intra_pred; 9-5 and 4-0 = the two deblocking offsets (5-bit two's complement); 22-21 and 31-23 = two derived reference-structure values |
+| `0x104c` | 4-0 = chroma_qp_index_offset, 9-5 = second_chroma_qp_index_offset (both 5-bit signed); 14-10 and 19-15 = (num_ref_idx_l0 - 1) and (num_ref_idx_l1 - 1), 5 bits; 24-20 and 29-25 plus bits 30/31 = the capped reference counts (6 bits each) |
+| `0x1050`, `0x1054`, `0x1058` | `slice+0x54`, `slice+0x4c`, `slice+0x50` |
+| `0x105c`, `0x1060` | block `+0xc8`, `+0xcc` (picture-structure dependent, one of two stored values) |
+| `0x1180` | `(((height+15) & ~15) >> 4) << 20 | ((width+15) & 0xfff0)` from the picture size at `ctx+0x1a2` / `ctx+0x1a0` |
+
+**Still open for the first group:** the sources of `0x1034`, the two fields of `0x103c`, `0x1050`-`0x1060`
+(slice-header fields at +0x4c/+0x50/+0x54/+0x18/+0x1c, not yet named) and the meaning of the derived
+reference-structure values in `0x1048`. Then the second group (`0x1064`-`0x107c`, `0x1160`-`0x1170`,
+`0x1184`-`0x1198`), which is built from the reference lists.
