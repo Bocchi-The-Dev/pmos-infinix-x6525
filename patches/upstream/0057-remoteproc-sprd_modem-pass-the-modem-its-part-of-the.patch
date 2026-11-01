@@ -1,0 +1,110 @@
+From 0fcbb301fb1672d8609d6a2e6ecbe264f0a7f3a1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 28 Oct 2026 17:59:11 +0800
+Subject: [PATCH 1/2] power: supply: bq2415x: accept CURRENT_MAX in microamps
+ from the notifier
+
+bq2415x_update_reported_mode() compares the supplier's CURRENT_MAX against
+500 and 1800 as milliamps, but the power supply API reports microamps. A
+supplier that follows the API, such as extcon-charger-detect (500000 for a
+plain USB source), therefore always read as a 1800 mA dedicated charger and
+the input current limit was lifted for every source. Treat values of 10000
+and above as microamps.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/bq2415x_charger.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/power/supply/bq2415x_charger.c b/drivers/power/supply/bq2415x_charger.c
+index 35bb0f0e0..509c1c123 100644
+--- a/drivers/power/supply/bq2415x_charger.c
++++ b/drivers/power/supply/bq2415x_charger.c
+@@ -790,6 +790,14 @@ static bool bq2415x_update_reported_mode(struct bq2415x_device *bq, int mA)
+ {
+ 	enum bq2415x_mode mode;
+ 
++	/*
++	 * POWER_SUPPLY_PROP_CURRENT_MAX is in microamps, but this notifier was
++	 * written for suppliers that report milliamps. No real mA value is
++	 * above a few thousand, so anything from 10000 up is microamps.
++	 */
++	if (mA >= 10000)
++		mA /= 1000;
++
+ 	if (mA == 0)
+ 		mode = BQ2415X_MODE_OFF;
+ 	else if (mA < 500)
+-- 
+2.43.0
+
+From 5759391959b031a644a4b706699da12a2e4f0379 Mon Sep 17 00:00:00 2001
+From: ci <a@b>
+Date: Sun, 1 Nov 2026 16:27:42 +0800
+Subject: [PATCH] remoteproc: sprd_modem: pass the modem its part of the kernel
+ command line
+
+The stock kernel hands the modem RF board, crystal and clock options through
+the cpcmdline region. The loader only cleared that region, so the modem booted
+but never opened its sipc channels. Add an optional sprd,cp-cmdline property
+and set it for the X6525.
+---
+ arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts |  5 +++++
+ drivers/remoteproc/sprd_modem.c                    | 11 +++++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+index ced0dc261..6c6ea4c3c 100644
+--- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -891,6 +891,11 @@ map0 {
+ };
+ 
+ &modem {
++	/*
++	 * The modem part of the stock kernel command line, which the stock
++	 * kernel copies to the modem's cpcmdline region.
++	 */
++	sprd,cp-cmdline = "modem=shutdown androidboot.mode=normal ltemode=lcsfb rfboard.id=2 rfhw.id=41008 crystal=6 32k.less=1 marlin.clktype=1 power.from.extern=0 androidboot.pmic.chipid=2730 cpcmdline=end";
+ 	status = "okay";
+ };
+ 
+diff --git a/drivers/remoteproc/sprd_modem.c b/drivers/remoteproc/sprd_modem.c
+index 55689adf2..96594cd0d 100644
+--- a/drivers/remoteproc/sprd_modem.c
++++ b/drivers/remoteproc/sprd_modem.c
+@@ -48,6 +48,7 @@ struct sprd_modem {
+ 	phys_addr_t mem_base;
+ 	size_t mem_size;
+ 	void *bootmem;
++	const char *cp_cmdline;
+ };
+ 
+ struct sprd_modem_region_def {
+@@ -98,6 +99,14 @@ static int sprd_modem_load_region(struct sprd_modem *m,
+ 
+ 	if (rdef->zero) {
+ 		memset(mem + (region_start - m->mem_base), 0, region_size);
++
++		/*
++		 * The stock kernel passes the modem its own part of the kernel
++		 * command line (RF board, crystal, ...) through this region.
++		 */
++		if (m->cp_cmdline && strlen(m->cp_cmdline) < region_size)
++			strscpy(mem + (region_start - m->mem_base),
++				m->cp_cmdline, region_size);
+ 	} else if (fw->size > region_size) {
+ 		if (rdef->filename)
+ 			release_firmware(fw);
+@@ -257,6 +266,8 @@ static int sprd_modem_probe(struct platform_device *pdev)
+ 	m = rproc->priv;
+ 	m->dev = dev;
+ 
++	of_property_read_string(dev->of_node, "sprd,cp-cmdline", &m->cp_cmdline);
++
+ 	m->info = of_device_get_match_data(dev);
+ 	if (!m->info)
+ 		return -EINVAL;
+-- 
+2.43.0
+
