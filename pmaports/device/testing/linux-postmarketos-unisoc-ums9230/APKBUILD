@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=50
+pkgrel=51
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -96,6 +96,7 @@ source="
 	0053-arm64-dts-sprd-infinix-x6525-add-the-650-MHz-GPU-step.patch
 	0054-media-i2c-s5k3l6-log-repeated-chip-id-reads.patch
 	0055-usb-typec-sc27xx_pd-only-record-VBUS-state-after-the.patch
+	0056-power-bq2415x-give-the-OTG-regulator-the-REGULATOR_C.patch
 "
 builddir="$srcdir/linux"
 
@@ -181,4 +182,5 @@ a5b0bf34a48393d37b8be8058f6f7eee637a95991ec3a1de7d8f24d5b5fb138841bc19701bdf5448
 26082a89165eebe4245b72918b386c1c1885ad0abee04cf76a8203db8c670f1f785416f8c038accf7a2456da986121a6cae19cbdbabfa1f2c57ba7f2660eacbf  0053-arm64-dts-sprd-infinix-x6525-add-the-650-MHz-GPU-step.patch
 a89c00cd82d41bd5d7c85425578c6f6c1b800325eae91ad41beca6eb2e79becd72869c1bd370d65ced360caba8253bb2ba6f3a1fbf694e1360088a8bc8d7e4da  0054-media-i2c-s5k3l6-log-repeated-chip-id-reads.patch
 2afc0355d43c8f4b5ffddaab6da838d6ed9862a57327e4a476bd0fd64630da527f20021ebc68da1606ad9fb9955132a36ce0e38e551c3124246a638c972f5f98  0055-usb-typec-sc27xx_pd-only-record-VBUS-state-after-the.patch
+caf3d6ea2cf5d54ddb7c721952589e2e08e0e09c0b294ded3b314fd1065999303c18405d4f7e52cf873125d5d9ed767c77e12e919f4903621a1fad09c273ec37  0056-power-bq2415x-give-the-OTG-regulator-the-REGULATOR_C.patch
 "
