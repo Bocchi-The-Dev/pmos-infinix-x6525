@@ -1,0 +1,91 @@
+From: Antigravity <antigravity@google.com>
+Subject: [PATCH] parse, mode: select video capture devnode and handle 16-byte DMA line alignment
+
+1. In find_media_node(), iterate over MEDIA_ENT_F_IO_V4L entities until one
+   with V4L2_CAP_VIDEO_CAPTURE is found. Multi-node media drivers (like Unisoc
+   sprd-camsys) register metadata output nodes (e.g. sprd_dcam0_config) before
+   the actual video capture node (sprd_dcam0_full).
+2. In libmegapixels_mode_width_to_padding(), align line stride to 16 bytes.
+   Modern ISP/DCAM hardware engines (including Unisoc) require 16-byte DMA
+   line alignment.
+
+Signed-off-by: Antigravity <antigravity@google.com>
+---
+ src/mode.c  | 11 ++++-------
+ src/parse.c | 24 +++++++++++++++++++++---
+ 2 files changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/src/mode.c b/src/mode.c
+index ecd3a6a..a8a80ca 100644
+--- a/src/mode.c
++++ b/src/mode.c
+@@ -326,15 +326,12 @@ libmegapixels_mode_width_to_bytes(int index, uint32_t width)
+ uint32_t
+ libmegapixels_mode_width_to_padding(int index, uint32_t width)
+ {
+-	if (mode_lut[index].bpp == 8) {
+-		return 0;
+-	}
+ 	uint64_t bytes_per_width = libmegapixels_mode_width_to_bytes(index, width);
+-	uint64_t remainder = bytes_per_width % 8;
++	uint64_t remainder = bytes_per_width % 16;
+ 	if (remainder == 0)
+-		return remainder;
++		return 0;
+ 
+-	return 8 - remainder;
++	return 16 - remainder;
+ }
+ 
+ uint32_t
+diff --git a/src/parse.c b/src/parse.c
+index 7be57b5..62ae3e7 100644
+--- a/src/parse.c
++++ b/src/parse.c
+@@ -160,10 +160,10 @@ find_media_node(libmegapixels_camera *camera, const char *media_name, const char
+ 			}
+ 
+ 
+-			// Find the bridge
++			// Find the bridge (video capture node)
+ 			for (int i = 0; i < topology.num_entities; i++) {
+ 				if (entities[i].function == MEDIA_ENT_F_IO_V4L) {
+-					found++;
++					char *vpath = NULL;
+ 					for (int j = 0; j < topology.num_links; j++) {
+ 						if (links[j].sink_id != entities[i].id) {
+ 							continue;
+@@ -173,11 +173,29 @@ find_media_node(libmegapixels_camera *camera, const char *media_name, const char
+ 								continue;
+ 							}
+ 
+-							camera->video_path = find_path_for_devnode(interfaces[k].devnode);
++							vpath = find_path_for_devnode(interfaces[k].devnode);
+ 							break;
+ 						}
++						if (vpath)
++							break;
++					}
++					if (vpath) {
++						int tfd = open(vpath, O_RDWR);
++						if (tfd >= 0) {
++							struct v4l2_capability cap = {0};
++							if (xioctl(tfd, VIDIOC_QUERYCAP, &cap) == 0) {
++								uint32_t caps = cap.device_caps ? cap.device_caps : cap.capabilities;
++								if (caps & V4L2_CAP_VIDEO_CAPTURE) {
++									camera->video_path = vpath;
++									found++;
++									close(tfd);
++									break;
++								}
++							}
++							close(tfd);
++						}
++						free(vpath);
+ 					}
+-					break;
+ 				}
+ 			}
+ 			camera->num_handles = 0;
+-- 
+2.45.1

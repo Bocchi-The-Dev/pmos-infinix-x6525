@@ -1308,7 +1308,6 @@ Model: "Smart 8 (X6525)";
 Rear: {
     SensorDriver: "s5k3l6";
     BridgeDriver: "sprd-camsys";
-    FlashPath: "/sys/class/leds/white:flash";
 
     Modes: (
         {
@@ -1321,10 +1320,10 @@ Rear: {
 
             Pipeline: (
                 {Type: "Link", From: "s5k3l6", FromPad: 0, To: "sprd_csi0", ToPad: 0},
-                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0, ExactName: true},
                 {Type: "Mode", Entity: "s5k3l6"},
                 {Type: "Mode", Entity: "sprd_csi0"},
-                {Type: "Mode", Entity: "sprd_dcam0"}
+                {Type: "Mode", Entity: "sprd_dcam0", ExactName: true}
             );
         },
         {
@@ -1337,10 +1336,10 @@ Rear: {
 
             Pipeline: (
                 {Type: "Link", From: "s5k3l6", FromPad: 0, To: "sprd_csi0", ToPad: 0},
-                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0, ExactName: true},
                 {Type: "Mode", Entity: "s5k3l6"},
                 {Type: "Mode", Entity: "sprd_csi0"},
-                {Type: "Mode", Entity: "sprd_dcam0"}
+                {Type: "Mode", Entity: "sprd_dcam0", ExactName: true}
             );
         },
         {
@@ -1353,10 +1352,10 @@ Rear: {
 
             Pipeline: (
                 {Type: "Link", From: "s5k3l6", FromPad: 0, To: "sprd_csi0", ToPad: 0},
-                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0, ExactName: true},
                 {Type: "Mode", Entity: "s5k3l6"},
                 {Type: "Mode", Entity: "sprd_csi0"},
-                {Type: "Mode", Entity: "sprd_dcam0"}
+                {Type: "Mode", Entity: "sprd_dcam0", ExactName: true}
             );
         }
     );
@@ -1379,10 +1378,10 @@ Front: {
 
             Pipeline: (
                 {Type: "Link", From: "ov8856", FromPad: 0, To: "sprd_csi0", ToPad: 0},
-                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0, ExactName: true},
                 {Type: "Mode", Entity: "ov8856"},
                 {Type: "Mode", Entity: "sprd_csi0"},
-                {Type: "Mode", Entity: "sprd_dcam0"}
+                {Type: "Mode", Entity: "sprd_dcam0", ExactName: true}
             );
         },
         {
@@ -1396,10 +1395,10 @@ Front: {
 
             Pipeline: (
                 {Type: "Link", From: "ov8856", FromPad: 0, To: "sprd_csi0", ToPad: 0},
-                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0, ExactName: true},
                 {Type: "Mode", Entity: "ov8856"},
                 {Type: "Mode", Entity: "sprd_csi0"},
-                {Type: "Mode", Entity: "sprd_dcam0"}
+                {Type: "Mode", Entity: "sprd_dcam0", ExactName: true}
             );
         }
     );
