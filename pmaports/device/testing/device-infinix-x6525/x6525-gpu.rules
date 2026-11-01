@@ -7,3 +7,8 @@ SUBSYSTEM=="platform", KERNEL=="23100000.gpu", ATTR{power/control}="on"
 # screen when libinput reports which output a touchscreen belongs to (WL_OUTPUT);
 # without it, landscape keeps portrait touch coordinates. The connector is DSI-1.
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="omnivision_tcm_touch", ENV{WL_OUTPUT}="DSI-1"
+
+# Camera subsystem permissions and seat access for unprivileged desktop users
+SUBSYSTEM=="media", KERNEL=="media*", TAG+="uaccess", GROUP="video", MODE="0660"
+SUBSYSTEM=="video4linux", KERNEL=="video*", TAG+="uaccess", GROUP="video", MODE="0660"
+SUBSYSTEM=="video4linux", KERNEL=="v4l-subdev*", TAG+="uaccess", GROUP="video", MODE="0660"

@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=58
+pkgrel=59
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -1291,9 +1291,124 @@ context.properties = {
 }
 EOF
 
-	# Megapixels camera configuration
+	# GTK4 renderer preference: Mali-G57 lacks Vulkan (panvk) support in Mesa; default to GLES (ngl)
+	mkdir -p "$pkgdir"/etc/environment.d
+	install -Dm644 /dev/stdin "$pkgdir"/etc/environment.d/10-gtk-renderer.conf <<'EOF'
+GSK_RENDERER=ngl
+EOF
+
+	# Megapixels camera configuration (both Megapixels 2.x .conf and 1.x .ini)
 	mkdir -p "$pkgdir"/usr/share/megapixels/config
 	mkdir -p "$pkgdir"/etc/megapixels/config
+	install -Dm644 /dev/stdin "$pkgdir"/usr/share/megapixels/config/infinix,x6525.conf <<'EOF'
+Version = 1;
+Make: "Infinix";
+Model: "Smart 8 (X6525)";
+
+Rear: {
+    SensorDriver: "s5k3l6";
+    BridgeDriver: "sprd-camsys";
+    FlashPath: "/sys/class/leds/white:flash";
+
+    Modes: (
+        {
+            Width: 1052;
+            Height: 780;
+            Rate: 30;
+            Format: "GRBG10P";
+            Rotate: 90;
+            FocalLength: 3.85;
+
+            Pipeline: (
+                {Type: "Link", From: "s5k3l6", FromPad: 0, To: "sprd_csi0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Mode", Entity: "s5k3l6"},
+                {Type: "Mode", Entity: "sprd_csi0"},
+                {Type: "Mode", Entity: "sprd_dcam0"}
+            );
+        },
+        {
+            Width: 2104;
+            Height: 1560;
+            Rate: 30;
+            Format: "GRBG10P";
+            Rotate: 90;
+            FocalLength: 3.85;
+
+            Pipeline: (
+                {Type: "Link", From: "s5k3l6", FromPad: 0, To: "sprd_csi0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Mode", Entity: "s5k3l6"},
+                {Type: "Mode", Entity: "sprd_csi0"},
+                {Type: "Mode", Entity: "sprd_dcam0"}
+            );
+        },
+        {
+            Width: 4208;
+            Height: 3120;
+            Rate: 15;
+            Format: "GRBG10P";
+            Rotate: 90;
+            FocalLength: 3.85;
+
+            Pipeline: (
+                {Type: "Link", From: "s5k3l6", FromPad: 0, To: "sprd_csi0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Mode", Entity: "s5k3l6"},
+                {Type: "Mode", Entity: "sprd_csi0"},
+                {Type: "Mode", Entity: "sprd_dcam0"}
+            );
+        }
+    );
+};
+
+Front: {
+    SensorDriver: "ov8856";
+    BridgeDriver: "sprd-camsys";
+    FlashDisplay: true;
+
+    Modes: (
+        {
+            Width: 1640;
+            Height: 1232;
+            Rate: 30;
+            Format: "GRBG10P";
+            Rotate: 270;
+            Mirror: true;
+            FocalLength: 3.33;
+
+            Pipeline: (
+                {Type: "Link", From: "ov8856", FromPad: 0, To: "sprd_csi0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Mode", Entity: "ov8856"},
+                {Type: "Mode", Entity: "sprd_csi0"},
+                {Type: "Mode", Entity: "sprd_dcam0"}
+            );
+        },
+        {
+            Width: 3280;
+            Height: 2464;
+            Rate: 15;
+            Format: "GRBG10P";
+            Rotate: 270;
+            Mirror: true;
+            FocalLength: 3.33;
+
+            Pipeline: (
+                {Type: "Link", From: "ov8856", FromPad: 0, To: "sprd_csi0", ToPad: 0},
+                {Type: "Link", From: "sprd_csi0", FromPad: 1, To: "sprd_dcam0", ToPad: 0},
+                {Type: "Mode", Entity: "ov8856"},
+                {Type: "Mode", Entity: "sprd_csi0"},
+                {Type: "Mode", Entity: "sprd_dcam0"}
+            );
+        }
+    );
+};
+EOF
+	ln -sf infinix,x6525.conf "$pkgdir"/usr/share/megapixels/config/sprd,ums9230.conf
+	ln -sf /usr/share/megapixels/config/infinix,x6525.conf "$pkgdir"/etc/megapixels/config/infinix,x6525.conf
+	ln -sf /usr/share/megapixels/config/infinix,x6525.conf "$pkgdir"/etc/megapixels/config/sprd,ums9230.conf
+
 	install -Dm644 /dev/stdin "$pkgdir"/usr/share/megapixels/config/infinix,x6525.ini <<'EOF'
 [device]
 make=Infinix
@@ -1330,5 +1445,5 @@ sha512sums="
 bd2ac31fbeeedf5f1d604f54dca9858071f591903e709ffd1f08f87267582cb215fb84e242b72da7a891786f31b4202437acc9bf66a6cc728ad6f2d811cbdfde  kernel-cmdline.conf
 c6c0dbe41167f41879b66fdd92163cd0ee267388737a23bbba3f790c1ba95709b035c4dfcdd775f498e5fffe04012be573de87bbd3e4830ce571be5011475164  modules-initfs
 401b778774f15dd370e27d3ca6f2b226f18bf7d411fb50bf7ab3a10ce163739fcb1d97be1aa00038fc50f6affb4f4c56350fd21832a93072054ac3bbb735ddd4  x6525-boot-check
-e9a765b11fb9cbec2da69b70b04dbdb05a62693f89402fe34dd1f862d2dfbaa01a14f9eb52e7045e90c6ae3ef5cb24133ab5669a10a19a90e0ec25fc56f1e2d8  x6525-gpu.rules
+d0f0db1e1bb5f45b93ba0d54c89af1efc331e1d1b04342aec109930287a6850c6b490ad47c6c148e9dc1d859e90ddbb5e8c92424550c1aaace7833034c75ed8a  x6525-gpu.rules
 "
