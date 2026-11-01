@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=53
+pkgrel=54
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -101,6 +101,8 @@ source="
 	0058-power-bq2415x-set-OTG-regulator-enable_time-and-igno.patch
 	0059-usb-typec-sc27xx_pd-poll-for-VBUS-off-when-unpowered.patch
 	0060-usb-musb-sprd-disconnect-root-hub-when-leaving-host-.patch
+	0061-clk-sprd-pll-fix-the-integer-fraction-split-in-set_r.patch
+	0062-power-bq2415x-use-sysfs_emit_at-when-printing-severa.patch
 "
 builddir="$srcdir/linux"
 
@@ -191,4 +193,6 @@ c15160544f678d5e97170910f60624fa6823d0a976e25aee06951d092febf23ee879142e59d1d390
 5d83edbfefde8147edc744c26478b1eef6d4e1c15d2c2d6eaf92a3613d370dfc2d0a860ab74384e1e418957617708912e762aeb0a768980b6bc2363a088c83f8  0058-power-bq2415x-set-OTG-regulator-enable_time-and-igno.patch
 3080c7dc32d8e14a48eeb470cbca6a3117c9601ff2214e9b193e736b8822ca3bf61b3bc2864f00a1f0b7e4a80feaf907f48803ca6adbf232eddc4413fdc31a1f  0059-usb-typec-sc27xx_pd-poll-for-VBUS-off-when-unpowered.patch
 3b446eda88691b4fb170c641cdb69abcdc4347dfa30752c5d00293cedb407b42236cc2a20c57c3fbe9abc325607d9e311fe74445c7cab8d1df7d1a021664f777  0060-usb-musb-sprd-disconnect-root-hub-when-leaving-host-.patch
+da9a00e9a6d67a3758b7b4d035c4349703b865b0a05e91f9eca020c8a035e05077d0042d90db652bf811c87556daa111508be8903f758f7365cc8820eb6931ca  0061-clk-sprd-pll-fix-the-integer-fraction-split-in-set_r.patch
+cfcbb1436f6061d40767c9b55eea8021fce9995d465be247204fd4518bfab04bb6c38f60e5033f5f81abbd4949a8310c4f8c138e27a4dabfbeaf8b728c572818  0062-power-bq2415x-use-sysfs_emit_at-when-printing-severa.patch
 "
