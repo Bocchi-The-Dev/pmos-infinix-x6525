@@ -1,36 +1,44 @@
 diff --git a/data/debayer.frag b/data/debayer.frag
-index a9fd0c8..1853fc8 100644
+index a9fd0c8..03e7a79 100644
 --- a/data/debayer.frag
 +++ b/data/debayer.frag
-@@ -33,9 +33,10 @@ main()
+@@ -33,9 +33,14 @@ main()
      vec3 color = vec3(samples.x, (samples.y + samples.z) / 2.0, samples.w);
      #endif
  
 -    color -= blacklevel;
-+    color = max(vec3(0.0), color - blacklevel);
++    color = max(vec3(0.0), color - blacklevel) / max(0.001, 1.0 - blacklevel);
      color *= color_matrix;
 +    color = clamp(color, 0.0, 1.0);
  
      vec3 gamma_color = pow(color, vec3(inv_gamma));
 -    gl_FragColor = vec4(gamma_color, 1);
-+    gl_FragColor = vec4(gamma_color, 1.0);
++    float luma = dot(gamma_color, vec3(0.2126, 0.7152, 0.0722));
++    vec3 sat_color = clamp(mix(vec3(luma), gamma_color, 1.35), 0.0, 1.0);
++    vec3 scurve = sat_color * sat_color * (3.0 - 2.0 * sat_color);
++    vec3 final_color = mix(sat_color, scurve, 0.5);
++    gl_FragColor = vec4(final_color, 1.0);
  }
 diff --git a/data/debayer_packed.frag b/data/debayer_packed.frag
-index de10180..fe54e52 100644
+index de10180..69eacba 100644
 --- a/data/debayer_packed.frag
 +++ b/data/debayer_packed.frag
-@@ -51,9 +51,10 @@ main()
+@@ -51,9 +51,14 @@ main()
      vec3 color = vec3(samples.x, (samples.y + samples.z) / 2.0, samples.w);
      #endif
  
 -    color -= blacklevel;
-+    color = max(vec3(0.0), color - blacklevel);
++    color = max(vec3(0.0), color - blacklevel) / max(0.001, 1.0 - blacklevel);
      color *= color_matrix;
 +    color = clamp(color, 0.0, 1.0);
  
      vec3 gamma_color = pow(color, vec3(inv_gamma));
 -    gl_FragColor = vec4(gamma_color, 1);
-+    gl_FragColor = vec4(gamma_color, 1.0);
++    float luma = dot(gamma_color, vec3(0.2126, 0.7152, 0.0722));
++    vec3 sat_color = clamp(mix(vec3(luma), gamma_color, 1.35), 0.0, 1.0);
++    vec3 scurve = sat_color * sat_color * (3.0 - 2.0 * sat_color);
++    vec3 final_color = mix(sat_color, scurve, 0.5);
++    gl_FragColor = vec4(final_color, 1.0);
  }
 diff --git a/src/dcp.c b/src/dcp.c
 index 8855b68..996ce75 100644
@@ -157,7 +165,7 @@ index 1f57aa7..0d780dd 100644
          settings = g_settings_new(APP_ID);
          char *setting_postproc = g_settings_get_string(settings, "postprocessor");
 diff --git a/src/process_pipeline.c b/src/process_pipeline.c
-index 4e3fdd4..dd6a7f6 100644
+index 4e3fdd4..44e7f8a 100644
 --- a/src/process_pipeline.c
 +++ b/src/process_pipeline.c
 @@ -698,10 +698,7 @@ process_image_for_preview(const uint8_t *image)
@@ -172,7 +180,32 @@ index 4e3fdd4..dd6a7f6 100644
  
          // Create a thumbnail from the preview for the last capture
          GdkTexture *thumb = NULL;
-@@ -1592,7 +1589,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+@@ -1572,11 +1569,19 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+                         state_proc.calibration = parse_calibration_file(cf);
+                 } else {
+                         fprintf(stderr, "No calibration for %s\n", state_proc.camera->name);
+-                        memcpy(state_proc.calibration.forward_matrix_1, sRGB_to_XYZD65, 9 * sizeof(float));
+-                        // The below is the same as calling libmegapixels' libmegapixels_aaa_init, but as we call
+-                        // libmegapixels_aaa_set_matrix, we need it to be in the calibration
+-                        memcpy(state_proc.calibration.color_matrix_1, IDENTITY, 9 * sizeof(float));
+-                        memcpy(state_proc.calibration.color_matrix_2, IDENTITY, 9 * sizeof(float));
++                        static const float default_cmos_forward[9] = {
++                                0.7063f, 0.1361f, 0.1219f,
++                                0.2691f, 0.6969f, 0.0340f,
++                                0.0003f, 0.0855f, 0.7393f
++                        };
++                        static const float default_cmos_colormat[9] = {
++                                1.8464f, -0.9617f, 0.0960f,
++                                -0.4260f, 1.3753f, 0.3348f,
++                                -0.1147f, 0.4933f, 1.6042f
++                        };
++                        memcpy(state_proc.calibration.forward_matrix_1, default_cmos_forward, 9 * sizeof(float));
++                        memcpy(state_proc.calibration.color_matrix_1, default_cmos_colormat, 9 * sizeof(float));
++                        memcpy(state_proc.calibration.color_matrix_2, default_cmos_colormat, 9 * sizeof(float));
+                 }
+         }
+ 
+@@ -1592,7 +1597,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
          }
  
  	exposure_limit = 0.01 / sec_per_line();

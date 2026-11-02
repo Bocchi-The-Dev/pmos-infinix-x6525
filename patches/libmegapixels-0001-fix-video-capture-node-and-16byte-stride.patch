@@ -1,5 +1,5 @@
 diff --git a/src/aaa.c b/src/aaa.c
-index 2d28158..aea33e9 100644
+index 2d28158..0af5a73 100644
 --- a/src/aaa.c
 +++ b/src/aaa.c
 @@ -39,12 +39,15 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
@@ -25,11 +25,11 @@ index 2d28158..aea33e9 100644
 +	unsigned int avg_y = total > 0 ? (unsigned int)(sum_y / total) : 0;
  	stats->exposure = 0;
 -	if (p_bright < 1) {
-+	if ((p_bright < 3 || avg_y < 85) && p_too_bright < 5) {
++	if ((p_bright < 5 || avg_y < 118) && p_too_bright < 6) {
  		stats->exposure = 1;
 -	}
 -	if (p_too_bright > 8) {
-+	} else if (p_too_bright > 8 || avg_y > 150) {
++	} else if (p_too_bright > 9 || avg_y > 165) {
  		stats->exposure = -1;
  	}
  	stats->blacklevel = 0;

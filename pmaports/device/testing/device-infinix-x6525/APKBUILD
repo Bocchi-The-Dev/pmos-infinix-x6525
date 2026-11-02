@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=61
+pkgrel=62
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -1437,6 +1437,14 @@ EOF
 	ln -sf infinix,x6525.ini "$pkgdir"/usr/share/megapixels/config/sprd,ums9230.ini
 	ln -sf /usr/share/megapixels/config/infinix,x6525.ini "$pkgdir"/etc/megapixels/config/infinix,x6525.ini
 	ln -sf /usr/share/megapixels/config/infinix,x6525.ini "$pkgdir"/etc/megapixels/config/sprd,ums9230.ini
+
+	# Megapixels DCP color calibration profiles
+	ln -sf pine64,pinephone,rear.dcp "$pkgdir"/usr/share/megapixels/config/infinix,x6525,Rear.dcp
+	ln -sf pine64,pinephone,front.dcp "$pkgdir"/usr/share/megapixels/config/infinix,x6525,Front.dcp
+	ln -sf /usr/share/megapixels/config/pine64,pinephone,rear.dcp "$pkgdir"/etc/megapixels/config/infinix,x6525,Rear.dcp
+	ln -sf /usr/share/megapixels/config/pine64,pinephone,front.dcp "$pkgdir"/etc/megapixels/config/infinix,x6525,Front.dcp
+	ln -sf /usr/share/megapixels/config/pine64,pinephone,rear.dcp "$pkgdir"/etc/megapixels/config/sprd,ums9230,Rear.dcp
+	ln -sf /usr/share/megapixels/config/pine64,pinephone,front.dcp "$pkgdir"/etc/megapixels/config/sprd,ums9230,Front.dcp
 }
 
 sha512sums="
