@@ -1,8 +1,8 @@
 diff --git a/data/debayer.frag b/data/debayer.frag
-index a9fd0c8..d818a42 100644
+index a9fd0c8..aa873c9 100644
 --- a/data/debayer.frag
 +++ b/data/debayer.frag
-@@ -33,9 +33,13 @@ main()
+@@ -33,9 +33,17 @@ main()
      vec3 color = vec3(samples.x, (samples.y + samples.z) / 2.0, samples.w);
      #endif
  
@@ -10,11 +10,15 @@ index a9fd0c8..d818a42 100644
 +    color = max(vec3(0.0), color - blacklevel) / max(0.001, 1.0 - blacklevel);
      color *= color_matrix;
 +    color = clamp(color, 0.0, 1.0);
++
++    // Dark noise coring: eliminates single-channel thermal noise spikes in shadows (< 0.012)
++    color = max(vec3(0.0), color - 0.012) / (1.0 - 0.012);
  
      vec3 gamma_color = pow(color, vec3(inv_gamma));
 -    gl_FragColor = vec4(gamma_color, 1);
 +    float luma = dot(gamma_color, vec3(0.299, 0.587, 0.114));
-+    float sat = smoothstep(0.02, 0.10, luma) * mix(1.15, 1.0, smoothstep(0.70, 0.95, luma));
++    // Chroma suppression in shadows: pure monochrome in deep shadows (< 0.04), rich color above 0.15
++    float sat = smoothstep(0.04, 0.15, luma) * mix(1.15, 1.0, smoothstep(0.70, 0.95, luma));
 +    vec3 final_color = clamp(mix(vec3(luma), gamma_color, sat), 0.0, 1.0);
 +    gl_FragColor = vec4(final_color, 1.0);
  }
@@ -34,10 +38,10 @@ index 2d506c1..029feb1 100644
      gl_Position = vec4(transform * vec3(vert, 1), 1);
  }
 diff --git a/data/debayer_packed.frag b/data/debayer_packed.frag
-index de10180..cc08961 100644
+index de10180..8a05aab 100644
 --- a/data/debayer_packed.frag
 +++ b/data/debayer_packed.frag
-@@ -51,9 +51,13 @@ main()
+@@ -51,9 +51,17 @@ main()
      vec3 color = vec3(samples.x, (samples.y + samples.z) / 2.0, samples.w);
      #endif
  
@@ -45,11 +49,15 @@ index de10180..cc08961 100644
 +    color = max(vec3(0.0), color - blacklevel) / max(0.001, 1.0 - blacklevel);
      color *= color_matrix;
 +    color = clamp(color, 0.0, 1.0);
++
++    // Dark noise coring: eliminates single-channel thermal noise spikes in shadows (< 0.012)
++    color = max(vec3(0.0), color - 0.012) / (1.0 - 0.012);
  
      vec3 gamma_color = pow(color, vec3(inv_gamma));
 -    gl_FragColor = vec4(gamma_color, 1);
 +    float luma = dot(gamma_color, vec3(0.299, 0.587, 0.114));
-+    float sat = smoothstep(0.02, 0.10, luma) * mix(1.15, 1.0, smoothstep(0.70, 0.95, luma));
++    // Chroma suppression in shadows: pure monochrome in deep shadows (< 0.04), rich color above 0.15
++    float sat = smoothstep(0.04, 0.15, luma) * mix(1.15, 1.0, smoothstep(0.70, 0.95, luma));
 +    vec3 final_color = clamp(mix(vec3(luma), gamma_color, sat), 0.0, 1.0);
 +    gl_FragColor = vec4(final_color, 1.0);
  }
@@ -132,7 +140,7 @@ index a43732e..8dcbcd2 100644
                  float g = calibration.tone_curve[i + 1] / calibration.tone_curve[i];
                  if (g > gamma) {
 diff --git a/src/io_pipeline.c b/src/io_pipeline.c
-index 0879923..4cac892 100644
+index 0879923..fa8487d 100644
 --- a/src/io_pipeline.c
 +++ b/src/io_pipeline.c
 @@ -312,8 +312,7 @@ update_controls()
@@ -207,21 +215,17 @@ index 0879923..4cac892 100644
          update_controls();
  
          // When the mode is switched while capturing we get a couple blank frames,
-@@ -510,8 +465,22 @@ init_controls()
+@@ -510,8 +465,18 @@ init_controls()
          if (state_io.gain.control.id) {
                  state_io.gain.value =
                          mp_camera_control_get_int32(&state_io.gain.control);
-+                /* Ensure reasonable initial gain on sensor startup */
++                /* Ensure healthy initial gain on sensor startup */
 +                if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "s5k3l6")) {
-+                        if (state_io.gain.value < 128) {
-+                                state_io.gain.value = 128;
-+                                mp_camera_control_set_int32(&state_io.gain.control, 128);
-+                        }
++                        state_io.gain.value = 128;
++                        mp_camera_control_set_int32(&state_io.gain.control, 128);
 +                } else if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "ov8856")) {
-+                        if (state_io.gain.value < 512) {
-+                                state_io.gain.value = 512;
-+                                mp_camera_control_set_int32(&state_io.gain.control, 512);
-+                        }
++                        state_io.gain.value = 512;
++                        mp_camera_control_set_int32(&state_io.gain.control, 512);
 +                }
 +                state_io.gain.value_req = state_io.gain.value;
          } else {
@@ -230,7 +234,7 @@ index 0879923..4cac892 100644
          }
  
          MPControl auto_gain_control;
-@@ -529,7 +498,14 @@ init_controls()
+@@ -529,7 +494,14 @@ init_controls()
          if (mp_camera_query_control(
                      state_io.camera->sensor_fd, V4L2_CID_DIGITAL_GAIN, &dgain_control)) {
                  state_io.dgain.control = dgain_control;
@@ -246,7 +250,7 @@ index 0879923..4cac892 100644
                  state_io.dgain.max = dgain_control.max;
          } else {
                  state_io.dgain.max = 0;
-@@ -538,6 +514,11 @@ init_controls()
+@@ -538,6 +510,11 @@ init_controls()
          if (state_io.dgain.control.id) {
                  state_io.dgain.value =
                          mp_camera_control_get_int32(&state_io.dgain.control);
@@ -258,21 +262,17 @@ index 0879923..4cac892 100644
          } else {
                  state_io.dgain.value = 0;
          }
-@@ -550,8 +531,22 @@ init_controls()
+@@ -550,8 +527,18 @@ init_controls()
                  state_io.exposure.max = exposure_control.max;
                  state_io.exposure.value =
                          mp_camera_control_get_int32(&exposure_control);
-+                /* Ensure reasonable initial exposure on sensor startup */
++                /* Ensure healthy initial exposure on sensor startup */
 +                if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "s5k3l6")) {
-+                        if (state_io.exposure.value < 500) {
-+                                state_io.exposure.value = 990;
-+                                mp_camera_control_set_int32(&state_io.exposure.control, 990);
-+                        }
++                        state_io.exposure.value = 1200;
++                        mp_camera_control_set_int32(&state_io.exposure.control, 1200);
 +                } else if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "ov8856")) {
-+                        if (state_io.exposure.value < 400) {
-+                                state_io.exposure.value = 800;
-+                                mp_camera_control_set_int32(&state_io.exposure.control, 800);
-+                        }
++                        state_io.exposure.value = 800;
++                        mp_camera_control_set_int32(&state_io.exposure.control, 800);
 +                }
 +                state_io.exposure.value_req = state_io.exposure.value;
          } else {
@@ -281,11 +281,41 @@ index 0879923..4cac892 100644
          }
  
          MPControl auto_exposure_control;
+@@ -595,7 +582,8 @@ init_controls()
+ static void
+ update_state(MPPipeline *pipeline, const mp_state_io *new_state)
+ {
+-        if (state_io.camera != new_state->camera) {
++        bool camera_changed = (state_io.camera != new_state->camera);
++        if (camera_changed) {
+                 if (state_io.camera != NULL) {
+                         mp_process_pipeline_sync();
+                         mp_camera_stop_capture(mpcamera);
+@@ -676,7 +664,7 @@ update_state(MPPipeline *pipeline, const mp_state_io *new_state)
+         state_io.device_accel_rotation = new_state->device_accel_rotation;
+         state_io.device_accel_rotation_good = new_state->device_accel_rotation_good;
+ 
+-        if (state_io.camera) {
++        if (state_io.camera && !camera_changed) {
+                 state_io.gain.value = new_state->gain.value;
+                 state_io.gain.value_req = new_state->gain.value_req;
+                 state_io.gain.manual = new_state->gain.manual;
 diff --git a/src/main.c b/src/main.c
-index 1f57aa7..0d780dd 100644
+index 1f57aa7..9d70d33 100644
 --- a/src/main.c
 +++ b/src/main.c
-@@ -1496,6 +1496,9 @@ activate(GtkApplication *app, gpointer data)
+@@ -839,6 +839,10 @@ run_camera_switch_action(GSimpleAction *action, GVariant *param, gpointer user_d
+         }
+ 
+         state.camera = state.configuration->cameras[new_index];
++        state.gain.value = 0;
++        state.gain.value_req = 0;
++        state.exposure.value = 0;
++        state.exposure.value_req = 0;
+         // TODO: allow setting burst length in the config
+         state.burst_length = 5;
+         update_io_pipeline();
+@@ -1496,6 +1500,9 @@ activate(GtkApplication *app, gpointer data)
          const char *quit_accels[] = { "<Ctrl>q", "<Ctrl>w", NULL };
          gtk_application_set_accels_for_action(app, "app.quit", quit_accels);
  
@@ -296,7 +326,7 @@ index 1f57aa7..0d780dd 100644
          settings = g_settings_new(APP_ID);
          char *setting_postproc = g_settings_get_string(settings, "postprocessor");
 diff --git a/src/process_pipeline.c b/src/process_pipeline.c
-index 4e3fdd4..b603d03 100644
+index 4e3fdd4..df01fe9 100644
 --- a/src/process_pipeline.c
 +++ b/src/process_pipeline.c
 @@ -38,7 +38,6 @@ libmegapixels_camera *pr_camera;
@@ -349,7 +379,15 @@ index 4e3fdd4..b603d03 100644
          bool auto_balance = TRUE;
          if (!auto_exposure && !auto_focus && !auto_balance) {
                  return;
-@@ -516,8 +518,8 @@ process_aaa()
+@@ -508,6 +510,7 @@ process_aaa()
+         int width = output_buffer_width;
+         int height = output_buffer_height / 3;
+         uint32_t *center = g_malloc_n(width * height * sizeof(uint32_t), 1);
++        glBindFramebuffer(GL_FRAMEBUFFER, gles2_debayer->frame_buffer);
+         glReadPixels(0, height, width, height, GL_RGBA, GL_UNSIGNED_BYTE, center);
+ 
+         libmegapixels_aaa_set_matrix(&state_proc.stats,
+@@ -516,8 +519,8 @@ process_aaa()
          libmegapixels_aaa_software_statistics(
                  &state_proc.stats, center, width, height);
  
@@ -360,7 +398,19 @@ index 4e3fdd4..b603d03 100644
  
  	if (auto_focus) {
  		struct focus_stats stats;
-@@ -587,17 +589,22 @@ process_aaa()
+@@ -555,7 +558,10 @@ process_aaa()
+                         if (state_proc.dgain.value > state_proc.dgain.min) {
+ 				update_exp(&state_proc.dgain, direction);
+                                 printf("D/Gain - %d\n", state_proc.gain.value_req);
+-			} else if (state_proc.exposure.value > exposure_limit) {
++			} else if (state_proc.gain.value > (state_proc.gain.max / 4)) {
++				update_exp(&state_proc.gain, direction);
++                                printf("Gain - %d\n", state_proc.gain.value_req);
++			} else if (state_proc.exposure.value > exposure_limit / 2) {
+ 				update_exp(&state_proc.exposure, direction);
+                                 printf("L/Expose - %d\n",
+                                        state_proc.exposure.value_req);
+@@ -587,17 +593,22 @@ process_aaa()
                  r /= state_proc.red;
                  b /= state_proc.blue;
  
@@ -376,12 +426,12 @@ index 4e3fdd4..b603d03 100644
 +                if (g > 15.0f && r > 2.0f && b > 2.0f) {
 +                        float target_r = g / r;
 +                        float target_b = g / b;
++
++                        target_r = clamp_float(target_r, 1.1f, 2.2f);
++                        target_b = clamp_float(target_b, 1.2f, 2.4f);
  
 -                        state_proc.red = clamp_float(new_r, 0.01f, 4.0f);
 -                        state_proc.blue = clamp_float(new_b, 0.01f, 4.0f);
-+                        target_r = clamp_float(target_r, 1.1f, 2.2f);
-+                        target_b = clamp_float(target_b, 1.2f, 2.4f);
-+
 +                        // Smooth temporal damping filter (10% step)
 +                        state_proc.red = state_proc.red * 0.90f + target_r * 0.10f;
 +                        state_proc.blue = state_proc.blue * 0.90f + target_b * 0.10f;
@@ -393,7 +443,7 @@ index 4e3fdd4..b603d03 100644
                  }
          }
  
-@@ -698,7 +705,8 @@ process_image_for_preview(const uint8_t *image)
+@@ -698,7 +709,8 @@ process_image_for_preview(const uint8_t *image)
          mp_process_pipeline_buffer_ref(output_buffer);
          mp_main_set_preview(output_buffer);
  
@@ -403,7 +453,7 @@ index 4e3fdd4..b603d03 100644
                  framecounter = 0;
                  process_aaa();
          }
-@@ -1485,9 +1493,9 @@ on_output_changed(bool format_changed)
+@@ -1485,9 +1497,9 @@ on_output_changed(bool format_changed)
                  gles2_debayer_use(gles2_debayer);
          }
  
@@ -416,7 +466,20 @@ index 4e3fdd4..b603d03 100644
          gles2_debayer_configure(gles2_debayer,
                                  output_buffer_width,
                                  output_buffer_height,
-@@ -1572,9 +1580,7 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+@@ -1526,6 +1538,12 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+         state_proc.exposure.max = new_state->exposure.max;
+         state_proc.exposure.manual = new_state->exposure.manual;
+ 
++        if (camera_changed) {
++                state_proc.gain.value_req = state_proc.gain.value;
++                state_proc.exposure.value_req = state_proc.exposure.value;
++                state_proc.dgain.value_req = state_proc.dgain.value;
++        }
++
+         state_proc.focus.control = new_state->focus.control;
+         state_proc.focus.auto_control = new_state->focus.auto_control;
+         state_proc.focus.value = new_state->focus.value;
+@@ -1572,9 +1590,7 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
                          state_proc.calibration = parse_calibration_file(cf);
                  } else {
                          fprintf(stderr, "No calibration for %s\n", state_proc.camera->name);
@@ -427,7 +490,7 @@ index 4e3fdd4..b603d03 100644
                          memcpy(state_proc.calibration.color_matrix_1, IDENTITY, 9 * sizeof(float));
                          memcpy(state_proc.calibration.color_matrix_2, IDENTITY, 9 * sizeof(float));
                  }
-@@ -1591,8 +1597,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+@@ -1591,8 +1607,19 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
                  on_output_changed(format_changed);
          }
  
@@ -439,9 +502,13 @@ index 4e3fdd4..b603d03 100644
 +	 * gain first. Only if analog gain is maxed out, allow exposure to
 +	 * reach frame maximum.
 +	 */
-+	exposure_limit = (state_proc.exposure.max * 7) / 10;
-+	if (exposure_limit < 500)
-+		exposure_limit = state_proc.exposure.max;
++	if (state_proc.camera && state_proc.camera->sensor_name && strstr(state_proc.camera->sensor_name, "s5k3l6")) {
++		exposure_limit = 2000;
++	} else if (state_proc.camera && state_proc.camera->sensor_name && strstr(state_proc.camera->sensor_name, "ov8856")) {
++		exposure_limit = 650;
++	} else {
++		exposure_limit = (state_proc.exposure.max * 5) / 10;
++	}
  
          mp_state_main new_main = {
                  .camera = pr_camera,
