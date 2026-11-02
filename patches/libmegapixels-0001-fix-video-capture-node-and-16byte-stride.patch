@@ -1,5 +1,5 @@
 diff --git a/src/aaa.c b/src/aaa.c
-index 2d28158..0af5a73 100644
+index 2d28158..3c3dae9 100644
 --- a/src/aaa.c
 +++ b/src/aaa.c
 @@ -39,12 +39,15 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
@@ -18,18 +18,21 @@ index 2d28158..0af5a73 100644
  		if (y > 220) {
  			too_bright++;
  		}
-@@ -68,11 +71,11 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
- 	unsigned int p_bright = (bright * 100) / total;
+@@ -65,14 +68,13 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+ 	}
+ 
+ 	// Exposure calculations
+-	unsigned int p_bright = (bright * 100) / total;
  	unsigned int p_too_bright = (too_bright * 100) / total;
  	unsigned int p_dark = (too_dark * 100) / total;
 +	unsigned int avg_y = total > 0 ? (unsigned int)(sum_y / total) : 0;
  	stats->exposure = 0;
 -	if (p_bright < 1) {
-+	if ((p_bright < 5 || avg_y < 118) && p_too_bright < 6) {
++	if (avg_y < 115 && p_too_bright < 6) {
  		stats->exposure = 1;
 -	}
 -	if (p_too_bright > 8) {
-+	} else if (p_too_bright > 9 || avg_y > 165) {
++	} else if (avg_y > 135 || p_too_bright > 12) {
  		stats->exposure = -1;
  	}
  	stats->blacklevel = 0;
