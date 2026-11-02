@@ -1,12 +1,13 @@
 diff --git a/src/aaa.c b/src/aaa.c
-index 2d28158..f8652bd 100644
+index 2d28158..0dfe5d3 100644
 --- a/src/aaa.c
 +++ b/src/aaa.c
-@@ -39,12 +39,15 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+@@ -39,12 +39,16 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
  	unsigned int too_dark = 0;
  	unsigned int total = width * height;
  	unsigned long long sum_r = 0, sum_g = 0, sum_b = 0;
 +	unsigned long long sum_y = 0;
++	unsigned int midrange_count = 0;
  	for (ssize_t p = 0; p < width * height; p++) {
  		unsigned int r = (frame[p] >> 0) & 0xff;
  		unsigned int g = (frame[p] >> 8) & 0xff;
@@ -18,7 +19,17 @@ index 2d28158..f8652bd 100644
  		if (y > 220) {
  			too_bright++;
  		}
-@@ -65,14 +68,13 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+@@ -57,22 +61,22 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+ 		}
+ 
+ 		// Whitebalance on the midrange pixels only
+-		if (y > 75 && y < 200) {
++		if (y > 35 && y < 215) {
+ 			sum_r += r;
+ 			sum_g += g;
+ 			sum_b += b;
++			midrange_count++;
+ 		}
  	}
  
  	// Exposure calculations
@@ -28,14 +39,30 @@ index 2d28158..f8652bd 100644
 +	unsigned int avg_y = total > 0 ? (unsigned int)(sum_y / total) : 0;
  	stats->exposure = 0;
 -	if (p_bright < 1) {
-+	if (avg_y < 138 && p_too_bright < 12) {
++	if (avg_y < 128 && p_too_bright < 10) {
  		stats->exposure = 1;
 -	}
 -	if (p_too_bright > 8) {
-+	} else if (avg_y > 158 || p_too_bright > 22) {
++	} else if (avg_y > 148 || p_too_bright > 20) {
  		stats->exposure = -1;
  	}
  	stats->blacklevel = 0;
+@@ -83,10 +87,11 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+ 		stats->blacklevel = 1;
+ 	}
+ 
+-	// Whitebalance calculations
+-	float r = (float) sum_r / total;
+-	float g = (float) sum_g / total;
+-	float b = (float) sum_b / total;
++	// Whitebalance calculations: normalize by midrange count for accurate scene color
++	unsigned int div = midrange_count > 0 ? midrange_count : (total > 0 ? total : 1);
++	float r = (float) sum_r / div;
++	float g = (float) sum_g / div;
++	float b = (float) sum_b / div;
+ 
+ 	stats->avg_r = (r * stats->matrix1[0]) + (g * stats->matrix1[1]) + (b * stats->matrix1[2]);
+ 	stats->avg_g = (r * stats->matrix1[3]) + (g * stats->matrix1[4]) + (b * stats->matrix1[5]);
 diff --git a/src/mode.c b/src/mode.c
 index ecd3a6a..a8a80ca 100644
 --- a/src/mode.c

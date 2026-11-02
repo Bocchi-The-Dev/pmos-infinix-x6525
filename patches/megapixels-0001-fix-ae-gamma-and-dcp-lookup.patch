@@ -1,5 +1,5 @@
 diff --git a/data/debayer.frag b/data/debayer.frag
-index a9fd0c8..45d2b51 100644
+index a9fd0c8..d818a42 100644
 --- a/data/debayer.frag
 +++ b/data/debayer.frag
 @@ -33,9 +33,13 @@ main()
@@ -14,7 +14,7 @@ index a9fd0c8..45d2b51 100644
      vec3 gamma_color = pow(color, vec3(inv_gamma));
 -    gl_FragColor = vec4(gamma_color, 1);
 +    float luma = dot(gamma_color, vec3(0.299, 0.587, 0.114));
-+    float sat = mix(1.20, 1.0, smoothstep(0.75, 0.95, luma));
++    float sat = smoothstep(0.02, 0.10, luma) * mix(1.15, 1.0, smoothstep(0.70, 0.95, luma));
 +    vec3 final_color = clamp(mix(vec3(luma), gamma_color, sat), 0.0, 1.0);
 +    gl_FragColor = vec4(final_color, 1.0);
  }
@@ -34,7 +34,7 @@ index 2d506c1..029feb1 100644
      gl_Position = vec4(transform * vec3(vert, 1), 1);
  }
 diff --git a/data/debayer_packed.frag b/data/debayer_packed.frag
-index de10180..bb3bedf 100644
+index de10180..cc08961 100644
 --- a/data/debayer_packed.frag
 +++ b/data/debayer_packed.frag
 @@ -51,9 +51,13 @@ main()
@@ -49,7 +49,7 @@ index de10180..bb3bedf 100644
      vec3 gamma_color = pow(color, vec3(inv_gamma));
 -    gl_FragColor = vec4(gamma_color, 1);
 +    float luma = dot(gamma_color, vec3(0.299, 0.587, 0.114));
-+    float sat = mix(1.20, 1.0, smoothstep(0.75, 0.95, luma));
++    float sat = smoothstep(0.02, 0.10, luma) * mix(1.15, 1.0, smoothstep(0.70, 0.95, luma));
 +    vec3 final_color = clamp(mix(vec3(luma), gamma_color, sat), 0.0, 1.0);
 +    gl_FragColor = vec4(final_color, 1.0);
  }
@@ -132,10 +132,105 @@ index a43732e..8dcbcd2 100644
                  float g = calibration.tone_curve[i + 1] / calibration.tone_curve[i];
                  if (g > gamma) {
 diff --git a/src/io_pipeline.c b/src/io_pipeline.c
-index 0879923..c3f8563 100644
+index 0879923..4cac892 100644
 --- a/src/io_pipeline.c
 +++ b/src/io_pipeline.c
-@@ -529,7 +529,14 @@ init_controls()
+@@ -312,8 +312,7 @@ update_controls()
+                 state_changed = true;
+         }
+ 
+-        if (state_io.exposure.manual &&
+-            state_io.exposure.value != state_io.exposure.value_req) {
++        if (state_io.exposure.value != state_io.exposure.value_req) {
+                 mp_camera_control_set_int32_bg(mpcamera,
+                                                &state_io.exposure.control,
+                                                state_io.exposure.value_req);
+@@ -327,50 +326,6 @@ update_controls()
+         }
+ }
+ 
+-static void
+-do_aaa()
+-{
+-        bool auto_exposure =
+-                !state_io.exposure.manual && state_io.exposure.auto_control.id == 0;
+-
+-        if (auto_exposure) {
+-                int direction = state_io.stats.exposure;
+-                int step = 0;
+-                if (direction > 0) {
+-                        // Preview is too dark
+-
+-                        // Try raising the exposure time first
+-                        if (state_io.exposure.value < state_io.exposure.max) {
+-                                step = state_io.exposure.value / 16;
+-                                state_io.exposure.value_req =
+-                                        state_io.exposure.value + (step * direction);
+-                                printf("Expose + %d\n", state_io.exposure.value_req);
+-                        } else {
+-                                // Raise sensor gain if exposure limit is hit
+-                                step = state_io.gain.value / 16;
+-                                state_io.gain.value_req =
+-                                        state_io.gain.value + (step * direction);
+-                                printf("Gain + %d\n", state_io.gain.value_req);
+-                        }
+-                } else if (direction < 0) {
+-                        // Preview is too bright
+-
+-                        // Lower the sensor gain first to have less noise
+-                        if (state_io.gain.value > 0) {
+-                                step = state_io.gain.value / 16;
+-                                state_io.gain.value_req =
+-                                        state_io.gain.value + (step * direction);
+-                                printf("Gain - %d\n", state_io.gain.value_req);
+-                        } else {
+-                                // Shorten the exposure time to go even darker
+-                                step = state_io.exposure.value / 16;
+-                                state_io.exposure.value_req =
+-                                        state_io.exposure.value + (step * direction);
+-                                printf("Expose - %d\n", state_io.exposure.value_req);
+-                        }
+-                }
+-        }
+-}
+ 
+ static void
+ on_frame(MPBuffer buffer, void *_data)
+@@ -385,8 +340,8 @@ on_frame(MPBuffer buffer, void *_data)
+ 
+         pipeline_changed = true;
+ 
+-        // Only update controls right after a frame was captured
+-        do_aaa();
++        // Auto exposure is exclusively handled by process_aaa in process_pipeline.
++        // do_aaa() here conflicted and caused exposure freezes.
+         update_controls();
+ 
+         // When the mode is switched while capturing we get a couple blank frames,
+@@ -510,8 +465,22 @@ init_controls()
+         if (state_io.gain.control.id) {
+                 state_io.gain.value =
+                         mp_camera_control_get_int32(&state_io.gain.control);
++                /* Ensure reasonable initial gain on sensor startup */
++                if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "s5k3l6")) {
++                        if (state_io.gain.value < 128) {
++                                state_io.gain.value = 128;
++                                mp_camera_control_set_int32(&state_io.gain.control, 128);
++                        }
++                } else if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "ov8856")) {
++                        if (state_io.gain.value < 512) {
++                                state_io.gain.value = 512;
++                                mp_camera_control_set_int32(&state_io.gain.control, 512);
++                        }
++                }
++                state_io.gain.value_req = state_io.gain.value;
+         } else {
+                 state_io.gain.value = 0;
++                state_io.gain.value_req = 0;
+         }
+ 
+         MPControl auto_gain_control;
+@@ -529,7 +498,14 @@ init_controls()
          if (mp_camera_query_control(
                      state_io.camera->sensor_fd, V4L2_CID_DIGITAL_GAIN, &dgain_control)) {
                  state_io.dgain.control = dgain_control;
@@ -151,7 +246,7 @@ index 0879923..c3f8563 100644
                  state_io.dgain.max = dgain_control.max;
          } else {
                  state_io.dgain.max = 0;
-@@ -538,6 +545,11 @@ init_controls()
+@@ -538,6 +514,11 @@ init_controls()
          if (state_io.dgain.control.id) {
                  state_io.dgain.value =
                          mp_camera_control_get_int32(&state_io.dgain.control);
@@ -163,6 +258,29 @@ index 0879923..c3f8563 100644
          } else {
                  state_io.dgain.value = 0;
          }
+@@ -550,8 +531,22 @@ init_controls()
+                 state_io.exposure.max = exposure_control.max;
+                 state_io.exposure.value =
+                         mp_camera_control_get_int32(&exposure_control);
++                /* Ensure reasonable initial exposure on sensor startup */
++                if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "s5k3l6")) {
++                        if (state_io.exposure.value < 500) {
++                                state_io.exposure.value = 990;
++                                mp_camera_control_set_int32(&state_io.exposure.control, 990);
++                        }
++                } else if (state_io.camera->sensor_name && strstr(state_io.camera->sensor_name, "ov8856")) {
++                        if (state_io.exposure.value < 400) {
++                                state_io.exposure.value = 800;
++                                mp_camera_control_set_int32(&state_io.exposure.control, 800);
++                        }
++                }
++                state_io.exposure.value_req = state_io.exposure.value;
+         } else {
+                 state_io.exposure.control.id = 0;
++                state_io.exposure.value_req = 0;
+         }
+ 
+         MPControl auto_exposure_control;
 diff --git a/src/main.c b/src/main.c
 index 1f57aa7..0d780dd 100644
 --- a/src/main.c
@@ -178,7 +296,7 @@ index 1f57aa7..0d780dd 100644
          settings = g_settings_new(APP_ID);
          char *setting_postproc = g_settings_get_string(settings, "postprocessor");
 diff --git a/src/process_pipeline.c b/src/process_pipeline.c
-index 4e3fdd4..ad0d2ef 100644
+index 4e3fdd4..b603d03 100644
 --- a/src/process_pipeline.c
 +++ b/src/process_pipeline.c
 @@ -38,7 +38,6 @@ libmegapixels_camera *pr_camera;
@@ -202,25 +320,25 @@ index 4e3fdd4..ad0d2ef 100644
  }
  
  static int focus;
-@@ -434,14 +435,14 @@ focus_stats(struct focus_stats *stats, const unsigned int *frame, const int widt
+@@ -434,14 +435,13 @@ focus_stats(struct focus_stats *stats, const unsigned int *frame, const int widt
  	stats->sharp = sharp;
  }
  
 -/* This does approximately 0.3 EV steps */
-+/* Smooth ~10% EV steps to eliminate flashing and hunting */
++/* Responsive EV steps with guaranteed minimum step to prevent exposure stall */
  static void
  update_exp(controlstate *control, int direction)
  {
- 	int step = 0;
+-	int step = 0;
 -	int min_step = 4;
-+	int min_step = 2;
++	int step = control->value / 8;
++	int min_step = MAX(8, (control->max - control->min) / 40);
  
 -	step = control->value / 4;
-+	step = control->value / 10;
  	step = step < min_step ? min_step : step;
  	control->value_req = control->value + (step * direction);
  }
-@@ -499,7 +500,9 @@ process_aaa()
+@@ -499,7 +499,9 @@ process_aaa()
          bool auto_exposure =
                  !state_proc.exposure.manual && state_proc.exposure.auto_control.id == 0;
          bool auto_focus =
@@ -231,7 +349,51 @@ index 4e3fdd4..ad0d2ef 100644
          bool auto_balance = TRUE;
          if (!auto_exposure && !auto_focus && !auto_balance) {
                  return;
-@@ -698,7 +701,8 @@ process_image_for_preview(const uint8_t *image)
+@@ -516,8 +518,8 @@ process_aaa()
+         libmegapixels_aaa_software_statistics(
+                 &state_proc.stats, center, width, height);
+ 
+-        state_proc.blacklevel -= (float)state_proc.stats.blacklevel * 0.001f;
+-        state_proc.blacklevel = clamp_float(state_proc.blacklevel, 0.0f, 0.07f);
++        // Optical black pedestal is 64 in 10-bit raw = 16 in 8-bit GL buffer (16/255 = 0.0627f)
++        state_proc.blacklevel = 16.0f / 255.0f;
+ 
+ 	if (auto_focus) {
+ 		struct focus_stats stats;
+@@ -587,17 +589,22 @@ process_aaa()
+                 r /= state_proc.red;
+                 b /= state_proc.blue;
+ 
+-                float t = 2.0f;
+-                if (r < t && g < t && b < t) {
+-                        // Don't try to AWB on very dark frames
+-                } else {
+-                        // Calculate the new R/B gains based on the average color of
+-                        // the frame
+-                        float new_r = g / clamp_float(r, 1.0f, 999.0f);
+-                        float new_b = g / clamp_float(b, 1.0f, 999.0f);
++                // Only adapt AWB if there is sufficient midtone illumination
++                if (g > 15.0f && r > 2.0f && b > 2.0f) {
++                        float target_r = g / r;
++                        float target_b = g / b;
+ 
+-                        state_proc.red = clamp_float(new_r, 0.01f, 4.0f);
+-                        state_proc.blue = clamp_float(new_b, 0.01f, 4.0f);
++                        target_r = clamp_float(target_r, 1.1f, 2.2f);
++                        target_b = clamp_float(target_b, 1.2f, 2.4f);
++
++                        // Smooth temporal damping filter (10% step)
++                        state_proc.red = state_proc.red * 0.90f + target_r * 0.10f;
++                        state_proc.blue = state_proc.blue * 0.90f + target_b * 0.10f;
++                } else {
++                        // In dim conditions, gracefully settle to neutral daylight balance
++                        // to prevent amplifying noise into purple speckles
++                        state_proc.red = state_proc.red * 0.95f + 1.55f * 0.05f;
++                        state_proc.blue = state_proc.blue * 0.95f + 1.80f * 0.05f;
+                 }
+         }
+ 
+@@ -698,7 +705,8 @@ process_image_for_preview(const uint8_t *image)
          mp_process_pipeline_buffer_ref(output_buffer);
          mp_main_set_preview(output_buffer);
  
@@ -241,7 +403,20 @@ index 4e3fdd4..ad0d2ef 100644
                  framecounter = 0;
                  process_aaa();
          }
-@@ -1572,9 +1576,7 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+@@ -1485,9 +1493,9 @@ on_output_changed(bool format_changed)
+                 gles2_debayer_use(gles2_debayer);
+         }
+ 
+-        state_proc.blacklevel = 0.0f;
+-        state_proc.red = 1.0f;
+-        state_proc.blue = 1.0f;
++        state_proc.blacklevel = 16.0f / 255.0f;
++        state_proc.red = 1.55f;
++        state_proc.blue = 1.80f;
+         gles2_debayer_configure(gles2_debayer,
+                                 output_buffer_width,
+                                 output_buffer_height,
+@@ -1572,9 +1580,7 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
                          state_proc.calibration = parse_calibration_file(cf);
                  } else {
                          fprintf(stderr, "No calibration for %s\n", state_proc.camera->name);
@@ -252,20 +427,20 @@ index 4e3fdd4..ad0d2ef 100644
                          memcpy(state_proc.calibration.color_matrix_1, IDENTITY, 9 * sizeof(float));
                          memcpy(state_proc.calibration.color_matrix_2, IDENTITY, 9 * sizeof(float));
                  }
-@@ -1591,8 +1593,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+@@ -1591,8 +1597,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
                  on_output_changed(format_changed);
          }
  
 -	exposure_limit = 0.01 / sec_per_line();
 -	printf("Exposure limit: %d\n", exposure_limit);
 +	/*
-+	 * Keep shutter speed at >= 1/50s (~20ms) for preview to eliminate
-+	 * motion blur and handshake. If the scene is darker, raise analog
++	 * Keep shutter speed at <= ~30ms for preview to eliminate
++	 * motion blur. If the scene is darker, raise analog
 +	 * gain first. Only if analog gain is maxed out, allow exposure to
-+	 * reach frame maximum (33ms).
++	 * reach frame maximum.
 +	 */
-+	exposure_limit = (state_proc.exposure.max * 6) / 10;
-+	if (exposure_limit < 100)
++	exposure_limit = (state_proc.exposure.max * 7) / 10;
++	if (exposure_limit < 500)
 +		exposure_limit = state_proc.exposure.max;
  
          mp_state_main new_main = {
