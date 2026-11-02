@@ -1,9 +1,9 @@
 # U-Boot board patches
 
-Seven patches for [codeberg.org/ums9230-mainline/u-boot](https://codeberg.org/ums9230-mainline/u-boot),
+Eight patches for [codeberg.org/ums9230-mainline/u-boot](https://codeberg.org/ums9230-mainline/u-boot),
 split the way that fork splits its own board commits - one device tree, one defconfig, one environment
 file, a debug one that prints the last kernel log (pstore) before booting (drop that one for anything
-but bring-up), the pmicwdt command the bootcmd uses, and the prodnv MAC preboot. The fork marks its
+but bring-up), the pmicwdt command the bootcmd uses, the prodnv MAC preboot, and UFS boot (the UFS stack the reeder uses, plus a scsi scan after mmc). The fork marks its
 own Reeder device tree commit `WIP:`; these do not, since the board builds in CI and the values that
 came from the Reeder have been checked against this phone. Verified with `git am` to apply in order
 to a clean checkout and to reproduce byte-identical files to what CI builds.
@@ -42,5 +42,6 @@ the DTB inside the CI-built `u-boot.bin` carries it.
 ## Deliberately not included
 
 No `board/` directory and no Kconfig or Makefile change: `SYS_BOARD` and `SYS_CONFIG_NAME` already
-default to `ums9230` for `TARGET_UMS9230`. UFS/SCSI are dropped from the defconfig because this board
-has no UFS device.
+default to `ums9230` for `TARGET_UMS9230`. The UFS/SCSI stack stays in the defconfig (patch 0008): the board shipped
+with either eMMC or UFS. On a UFS unit the MAC preboot still reads only `mmc 0#prodnv`, so those units keep
+the kernel's random BD address.

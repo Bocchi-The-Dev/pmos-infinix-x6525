@@ -1,0 +1,43 @@
+From fbef5260acbfb46f83e52635e8bd6a6084a03b7a Mon Sep 17 00:00:00 2001
+From: ci <a@b>
+Date: Tue, 3 Nov 2026 05:51:33 +0800
+Subject: [PATCH 69/69] arm64: dts: sprd: infinix-x6525: enable the UFS
+ controller
+
+The X6525 shipped with either eMMC on sdio3 or UFS as its internal storage.
+Enable the UFS controller with the eMMC core rail as vcc, as the
+Classity-Real fork does. On an eMMC unit the controller probes, finds no
+device and gives up. Not verified on a UFS unit.
+---
+ .../arm64/boot/dts/sprd/ums9230-infinix-x6525.dts | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+index 407b1e374..f5a8e03bf 100644
+--- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -285,6 +285,21 @@ &sdio3 {
+ 	status = "okay";
+ };
+ 
++/*
++ * UFS - the alternate internal storage. The X6525 shipped with either this or
++ * the eMMC above; the UFS units boot the same image, found by U-Boot's scsi
++ * scan, and the initramfs finds the root by UUID whatever the disk is called.
++ * vcc is taken to be the same core rail the eMMC runs on (copied from the
++ * Classity-Real fork, not checked against a UFS unit's stock tree); vccq and
++ * vccq2 are not described and the controller treats them as optional. The
++ * driver is built in (CONFIG_SCSI_UFS_SPRD=y). On an eMMC unit the controller
++ * probes, finds no device and gives up.
++ */
++&ufs {
++	vcc-supply = <&vddemmccore>;
++	status = "okay";
++};
++
+ /* ---- USB ----------------------------------------------------------------
+  * The SoC USB controller is MUSB (sprd,ums9230-musb) - same as the reeder, and
+  * the reason USB_MUSB_HDRC/SPRD must be built in for pmOS USB networking.
+-- 
+2.43.0
+

@@ -146,24 +146,33 @@ fastboot flash userdata <out>/pmos-root-fs.img    # pmOS_root
   shrinking anything: U-Boot scans every partition of the eMMC for a bootflow, so the name does not
   matter.
 
-### Storage variants: eMMC and UFS
+### Storage variants: eMMC, UFS and microSD
 
-The X6525 shipped with either eMMC or UFS, and this port is eMMC-only today:
+The X6525 shipped with either eMMC or UFS as its internal storage. The same images are meant to
+boot on both, but **only the eMMC route has been tested on hardware**:
 
-- U-Boot is built without any UFS driver (`uboot/configs/infinix-x6525_defconfig` drops
-  `CMD_UFS`/`SCSI`/`UFS`/`UFS_SPRD_UMS9230`), so on a UFS unit it cannot read the `cache`
-  partition and the phone stops at the U-Boot prompt. The kernel does build the controller in
-  (`CONFIG_SCSI_UFS_SPRD=y`), and the initramfs would find the root by UUID, but the boot never
-  reaches the kernel.
-- Flashing the eMMC images into a UFS unit writes the partitions fastboot is given and nothing
-  else; it does not touch the storage hardware, and the stock bootloader and fastboot stay
-  available for recovery. The image simply will not boot.
-- Check the unit before flashing: in the stock bootloader or Android, `cat /proc/cmdline`
-  names the boot device - the unit this port was developed on says `sprdboot.flash=emmc`, and a
-  UFS unit names its UFS controller there (and in `androidboot.boot_devices`).
-- Support for both in one image needs U-Boot's UFS driver, a UFS node in the board U-Boot DTS and
-  `&ufs` enabled in the kernel DTS; the kernel side is already configured. Nothing has been tested
-  against a UFS unit, so do not flash one until that is done.
+- **UFS.** U-Boot now carries the reeder's UFS stack (`CMD_UFS`, `SCSI`, `UFS`, `UFS_SPRD_UMS9230`) and
+  scans the scsi bus right after mmc (`uboot/board/unisoc/ums9230/infinix-x6525.env`); the kernel DTS
+  enables `&ufs` with the eMMC core rail as `vcc` (kernel patch 0069), and the controller driver is built
+  in. The work comes from the Classity-Real fork. On a UFS unit the `cache` and `userdata` partitions
+  live on the UFS, so the same `fastboot flash cache` / `userdata` steps apply. Known gaps: `vcc` is
+  assumed to be the eMMC rail and `vccq` is not described; the BT/Wi-Fi MAC preboot reads only
+  `mmc 0#prodnv`, so a UFS unit keeps the random BD address; the eMMC cache units look for
+  `/dev/mmcblk0` and do nothing there. Check which kind of unit you have first: in the stock bootloader
+  or Android, `cat /proc/cmdline` says `sprdboot.flash=emmc` or names the UFS controller
+  (`androidboot.boot_devices=...20200000.ufs`). If the phone stops at the U-Boot prompt, `ufs` and `scsi
+  scan` there show whether the controller came up.
+- **microSD.** Run the `rom` workflow with `sdcard` ticked: it also uploads `x6525-rom-sdcard` with
+  `x6525-sdcard.img` (the boot and root filesystems on one MBR image, built by
+  `tools/make-sd-image.py` without a second install) and `boot.img`. Flash `boot.img` to `boot_a` as
+  usual (U-Boot), write the image to the card with `dd if=x6525-sdcard.img of=/dev/sdX bs=4M
+  conv=fsync`, then run `resize2fs` on the card's second partition to use the rest of it. The kernel
+  side polls the slot (`broken-cd`) and leaves the UHS modes off (kernel patch 0068, from the
+  Bocchi-The-Dev fork). Unverified: that U-Boot can read the card at all - the slot's rails
+  (`vddsdcore`, `vddsdio`) are PMIC LDOs and U-Boot has no regulator driver, so unless the stock
+  bootloader leaves them on the slot may be unpowered when U-Boot looks. U-Boot scans mmc devices in
+  order, so with an eMMC unit's own `cache` partition carrying a boot filesystem the internal one may
+  win; clear it (or use a UFS/eMMC unit with the card as the only boot source) when testing the card.
 
 ## 1. U-Boot starts
 

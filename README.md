@@ -22,9 +22,9 @@ filesystem image and a root filesystem image, no partition table), which are fla
 partitions (`cache` and `userdata` - the route in
 FIRST_BOOT.md).
 `pmbootstrap flasher flash_rootfs` must not be run: it writes the root filesystem image into
-`super`, which U-Boot does not read and which belongs to Android. **eMMC units only:** the X6525
-also shipped with UFS, and this image does not boot on those (U-Boot has no UFS driver; see
-FIRST_BOOT.md, "Storage variants"). `NOTES.md` is the record
+`super`, which U-Boot does not read and which belongs to Android. **Storage:** the X6525 shipped with eMMC or
+UFS. U-Boot and the kernel now handle both and the `rom` workflow can also build a microSD image, but
+only eMMC has been tested on hardware (FIRST_BOOT.md, "Storage variants"). `NOTES.md` is the record
 behind it: every value taken from the stock system or from the running device's own device tree, with
 its source.
 

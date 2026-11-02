@@ -1,0 +1,77 @@
+From edd3d00ae9f39f1d1b0f15d36c3f0c6c687c346e Mon Sep 17 00:00:00 2001
+From: Seuj09 <jeus110310@gmail.com>
+Date: Mon, 2 Nov 2026 19:38:30 +0800
+Subject: [PATCH] board: unisoc: ums9230: infinix-x6525: boot from UFS as well
+ as eMMC
+
+The X6525 shipped with either eMMC on sdio3 or UFS as its internal storage.
+Keep the reeder's UFS stack (CMD_UFS, SCSI, UFS, UFS_SPRD_UMS9230; the dtsi's
+ufs node has no status line, so it is enabled) and scan the scsi bus right
+after mmc, so a UFS unit finds its extlinux entry. The no-bootflow debug
+output is mirrored for scsi.
+
+Based on the Classity-Real fork's change; the MAC preboot still reads prodnv
+from mmc only, so UFS units keep the kernel's random BD address.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BfvoN2QMhDVD6rSACbEu3p
+---
+ board/unisoc/ums9230/infinix-x6525.env |  2 +-
+ configs/infinix-x6525_defconfig        | 10 +++++++---
+ 2 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/board/unisoc/ums9230/infinix-x6525.env b/board/unisoc/ums9230/infinix-x6525.env
+index a0efe2a8..7020eb26 100644
+--- a/board/unisoc/ums9230/infinix-x6525.env
++++ b/board/unisoc/ums9230/infinix-x6525.env
+@@ -7,7 +7,7 @@ preboot=
+   mw.b 0x9c000011 0;
+   setexpr.s wifiaddr *0x9c000000;
+  fi
+-bootcmd=pmicwdt stop; sleep 5; pstore display console; pstore display dump; sleep 15; bootflow scan -lb mmc; echo === no bootflow: the cache partition ===; part number mmc 0 cache cachenum; echo cache is partition ${cachenum}; ls mmc 0:${cachenum} /; ls mmc 0:${cachenum} /extlinux
++bootcmd=pmicwdt stop; sleep 5; pstore display console; pstore display dump; sleep 15; bootflow scan -lb mmc; bootflow scan -lb scsi; echo === no bootflow: the cache partition ===; part number mmc 0 cache cachenum; echo cache is partition ${cachenum}; ls mmc 0:${cachenum} /; ls mmc 0:${cachenum} /extlinux; echo === no bootflow on scsi: the cache partition ===; part number scsi 0 cache cachenum; echo cache is partition ${cachenum}; ls scsi 0:${cachenum} /; ls scsi 0:${cachenum} /extlinux
+ fdt_addr_r=0x9df00000
+ kernel_addr_r=0x80080000
+ kernel_comp_addr_r=0xc0000000
+diff --git a/configs/infinix-x6525_defconfig b/configs/infinix-x6525_defconfig
+index feea6910..c5a7f09d 100644
+--- a/configs/infinix-x6525_defconfig
++++ b/configs/infinix-x6525_defconfig
+@@ -1,6 +1,6 @@
+-# Modelled on reeder-s19mps_defconfig with the differences the X6525 needs: its
+-# own device tree, and no UFS (this board has an eMMC on sdio3 and no UFS
+-# device), so CMD_UFS/SCSI/UFS/UFS_SPRD_UMS9230 are dropped.
++# Modelled on reeder-s19mps_defconfig with the differences the X6525 needs:
++# its own device tree. CMD_UFS/SCSI/UFS/UFS_SPRD_UMS9230 are kept as in the
++# reeder: the X6525 shipped with either eMMC (sdio3) or UFS.
+ CONFIG_ARM=y
+ CONFIG_POSITION_INDEPENDENT=y
+ CONFIG_ARCH_SPRD=y
+@@ -32,6 +32,7 @@ CONFIG_CMD_DM=y
+ CONFIG_CMD_LSBLK=y
+ CONFIG_CMD_MMC=y
+ CONFIG_CMD_SPI=y
++CONFIG_CMD_UFS=y
+ CONFIG_CMD_USB_MASS_STORAGE=y
+ # CONFIG_CMD_MII is not set
+ # CONFIG_CMD_CLS is not set
+@@ -47,6 +48,7 @@ CONFIG_MMC_SDHCI=y
+ CONFIG_MMC_SDHCI_ADMA=y
+ CONFIG_MMC_SDHCI_ADMA_64BIT_V4=y
+ CONFIG_MMC_SDHCI_SPRD=y
++CONFIG_SCSI=y
+ CONFIG_SPECIFY_CONSOLE_INDEX=y
+ CONFIG_SPRD_SERIAL=y
+ CONFIG_SYSRESET=y
+@@ -55,6 +57,8 @@ CONFIG_DM_USB_GADGET=y
+ CONFIG_USB_MUSB_GADGET=y
+ CONFIG_USB_MUSB_PIO_ONLY=y
+ CONFIG_USB_GADGET=y
++CONFIG_UFS=y
++CONFIG_UFS_SPRD_UMS9230=y
+ CONFIG_VIDEO=y
+ CONFIG_VIDEO_FONT_16X32=y
+ CONFIG_VIDEO_ANSI=y
+-- 
+2.43.0
+

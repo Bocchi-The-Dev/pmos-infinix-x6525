@@ -160,8 +160,9 @@ nothing corrects memory at runtime - so relocation and the stack would land abov
 
 - the board DTB needs **no** `arch/arm/dts/Makefile` entry: `scripts/Makefile.dts` puts
   `$(CONFIG_DEFAULT_DEVICE_TREE).dtb` into `dtb-y` itself.
-- `configs/infinix-x6525_defconfig` differs from `reeder-s19mps_defconfig` only by dropping the UFS
-  stack (`CMD_UFS`, `SCSI`, `UFS`, `UFS_SPRD_UMS9230`) - verified by diffing the two files.
+- `configs/infinix-x6525_defconfig` keeps the reeder's UFS stack (`CMD_UFS`, `SCSI`, `UFS`,
+  `UFS_SPRD_UMS9230`) since U-Boot patch 0008, because the X6525 shipped with eMMC or UFS; it was
+  dropped before that.
 - `arch/arm/mach-sprd/Kconfig` selects ARM64 for `TARGET_UMS9230` (hence `ARCH=arm` on the command
   line), and its defaults (`TEXT_BASE` 0x9f000000, `SYS_LOAD_ADDR` 0x90000000) are overridden in the
   defconfig.

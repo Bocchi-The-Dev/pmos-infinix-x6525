@@ -228,15 +228,19 @@
 	 * device's own (sdio@201a0000); the vendor's sd-detect-pol-syscon and
 	 * sd-hotplug-* properties are its own and are not in the binding.
 	 */
-	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW>;	/* eic_sync confirmed: the running system */
-							/* has gpio-355 "cd" on the eic-sync chip; the */
-							/* reeder's eic_async is not this board. It read */
-							/* high with the slot empty, so low = card in. */
+	/*
+	 * Card detect is polled (broken-cd) rather than read from eic_sync 35.
+	 * The slot is also a boot path, U-Boot ignores card-detect altogether,
+	 * and that line's polarity (low = card in) was only read off an empty
+	 * slot. Restore cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW> once a card has
+	 * been seen to flip it. From the microSD fix in Bocchi-The-Dev's fork.
+	 */
+	broken-cd;
 	vmmc-supply = <&vddsdcore>;
 	vqmmc-supply = <&vddsdio>;
 	bus-width = <4>;
-	sd-uhs-sdr104;
-	sd-uhs-sdr50;
+	/* No UHS modes for now: 3.3 V high-speed only, so a failed 1.8 V switch
+	 * of vddsdio cannot be what hides the card. */
 	no-sdio;
 	no-mmc;
 
@@ -278,6 +282,21 @@
 	/* No vqmmc-supply: vddsdio is the microSD slot's IO rail (it is
 	 * &sdio0's vqmmc above), and the running system's eMMC node names no
 	 * IO supply of its own - the port had the card slot's rail here. */
+	status = "okay";
+};
+
+/*
+ * UFS - the alternate internal storage. The X6525 shipped with either this or
+ * the eMMC above; the UFS units boot the same image, found by U-Boot's scsi
+ * scan, and the initramfs finds the root by UUID whatever the disk is called.
+ * vcc is taken to be the same core rail the eMMC runs on (copied from the
+ * Classity-Real fork, not checked against a UFS unit's stock tree); vccq and
+ * vccq2 are not described and the controller treats them as optional. The
+ * driver is built in (CONFIG_SCSI_UFS_SPRD=y). On an eMMC unit the controller
+ * probes, finds no device and gives up.
+ */
+&ufs {
+	vcc-supply = <&vddemmccore>;
 	status = "okay";
 };
 

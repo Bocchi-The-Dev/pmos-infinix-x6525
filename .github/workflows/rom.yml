@@ -36,6 +36,11 @@ name: rom
 
 on:
   workflow_dispatch:
+    inputs:
+      sdcard:
+        description: "Also build x6525-sdcard.img, the same filesystems on one microSD card image (untested route, see FIRST_BOOT.md)"
+        type: boolean
+        default: false
 
 jobs:
   rom:
@@ -278,4 +283,23 @@ jobs:
         with:
           name: x6525-rom
           path: /tmp/rom-out/
+          if-no-files-found: error
+
+      # The microSD image is the same two filesystems on a partition table (no
+      # second install): tools/make-sd-image.py. A separate artifact so the
+      # normal download stays the size it was.
+      - name: Make the microSD card image
+        if: ${{ inputs.sdcard }}
+        run: |
+          mkdir -p /tmp/sd-out
+          python3 -I tools/make-sd-image.py /tmp/rom-out/pmos-boot-fs.img \
+            /tmp/rom-out/pmos-root-fs.img /tmp/sd-out/x6525-sdcard.img
+          cp /tmp/rom-out/boot.img /tmp/sd-out/boot.img
+
+      - name: Upload the microSD card image
+        if: ${{ inputs.sdcard }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: x6525-rom-sdcard
+          path: /tmp/sd-out/
           if-no-files-found: error
