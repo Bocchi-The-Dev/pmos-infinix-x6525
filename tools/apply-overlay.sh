@@ -67,7 +67,7 @@ for p in "$HERE"/patches/*.patch "$HERE"/patches/*/*.patch; do
 	# patches/upstream* holds the submission copies of what is already in the
 	# tree; applying them here would double-apply the build glue.
 	case "$p" in
-	*"/upstream/"*|*"/upstream-uboot/"*) continue ;;
+	*"/upstream/"*|*"/upstream-uboot/"*|*"/userspace/"*) continue ;;
 	esac
 	if git -C "$TREE" apply -R --check "$p" 2>/dev/null; then
 		echo "$(basename "$p") is already applied"
