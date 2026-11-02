@@ -1,3 +1,38 @@
+diff --git a/src/aaa.c b/src/aaa.c
+index 2d28158..aea33e9 100644
+--- a/src/aaa.c
++++ b/src/aaa.c
+@@ -39,12 +39,15 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+ 	unsigned int too_dark = 0;
+ 	unsigned int total = width * height;
+ 	unsigned long long sum_r = 0, sum_g = 0, sum_b = 0;
++	unsigned long long sum_y = 0;
+ 	for (ssize_t p = 0; p < width * height; p++) {
+ 		unsigned int r = (frame[p] >> 0) & 0xff;
+ 		unsigned int g = (frame[p] >> 8) & 0xff;
+ 		unsigned int b = (frame[p] >> 16) & 0xff;
+ 		unsigned int y = (r + g + b) / 3;
+ 
++		sum_y += y;
++
+ 		if (y > 220) {
+ 			too_bright++;
+ 		}
+@@ -68,11 +71,11 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+ 	unsigned int p_bright = (bright * 100) / total;
+ 	unsigned int p_too_bright = (too_bright * 100) / total;
+ 	unsigned int p_dark = (too_dark * 100) / total;
++	unsigned int avg_y = total > 0 ? (unsigned int)(sum_y / total) : 0;
+ 	stats->exposure = 0;
+-	if (p_bright < 1) {
++	if ((p_bright < 3 || avg_y < 85) && p_too_bright < 5) {
+ 		stats->exposure = 1;
+-	}
+-	if (p_too_bright > 8) {
++	} else if (p_too_bright > 8 || avg_y > 150) {
+ 		stats->exposure = -1;
+ 	}
+ 	stats->blacklevel = 0;
 diff --git a/src/mode.c b/src/mode.c
 index ecd3a6a..a8a80ca 100644
 --- a/src/mode.c

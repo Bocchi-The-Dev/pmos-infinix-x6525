@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=60
+pkgrel=61
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -1315,7 +1315,7 @@ Rear: {
             Height: 780;
             Rate: 30;
             Format: "GRBG10P";
-            Rotate: 90;
+            Rotate: 270;
             FocalLength: 3.85;
 
             Pipeline: (
@@ -1331,7 +1331,7 @@ Rear: {
             Height: 1560;
             Rate: 30;
             Format: "GRBG10P";
-            Rotate: 90;
+            Rotate: 270;
             FocalLength: 3.85;
 
             Pipeline: (
@@ -1347,7 +1347,7 @@ Rear: {
             Height: 3120;
             Rate: 15;
             Format: "GRBG10P";
-            Rotate: 90;
+            Rotate: 270;
             FocalLength: 3.85;
 
             Pipeline: (
@@ -1371,7 +1371,7 @@ Front: {
             Width: 1640;
             Height: 1232;
             Rate: 30;
-            Format: "GRBG10P";
+            Format: "BGGR10P";
             Rotate: 270;
             Mirror: true;
             FocalLength: 3.33;
@@ -1388,7 +1388,7 @@ Front: {
             Width: 3280;
             Height: 2464;
             Rate: 15;
-            Format: "GRBG10P";
+            Format: "BGGR10P";
             Rotate: 270;
             Mirror: true;
             FocalLength: 3.33;
@@ -1416,7 +1416,7 @@ model=Smart 8 (X6525)
 [rear]
 driver=s5k3l6
 media-driver=sprd-camsys
-rotate=90
+rotate=270
 mirrored=false
 blacklevel=64
 whitelevel=1023
