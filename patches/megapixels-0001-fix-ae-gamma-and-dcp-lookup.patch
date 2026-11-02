@@ -61,6 +61,32 @@ index de10180..8a05aab 100644
 +    vec3 final_color = clamp(mix(vec3(luma), gamma_color, sat), 0.0, 1.0);
 +    gl_FragColor = vec4(final_color, 1.0);
  }
+diff --git a/data/postprocess.sh b/data/postprocess.sh
+index c1ee615..0e5e20a 100755
+--- a/data/postprocess.sh
++++ b/data/postprocess.sh
+@@ -50,16 +50,17 @@ if command -v "dcraw_emu" > /dev/null
+ then
+ 	DCRAW=dcraw_emu
+ 	# -fbdd 1	Raw denoising with FBDD
+-	set -- -fbdd 1
++	# -k 64		Subtract optical black pedestal (64 in 10-bit raw)
++	# -a		Automatic white balance from scene
++	set -- -fbdd 1 -k 64 -a
+ elif [ -x "/usr/lib/libraw/dcraw_emu" ]; then
+ 	DCRAW=/usr/lib/libraw/dcraw_emu
+-	# -fbdd 1	Raw denoising with FBDD
+-	set -- -fbdd 1
++	set -- -fbdd 1 -k 64 -a
+ elif command -v "dcraw" > /dev/null
+ then
+ 	DCRAW=dcraw
+ 	TIFF_EXT="tiff"
+-	set -- -w
++	set -- -w -k 64 -a
+ fi
+ 
+ CONVERT=""
 diff --git a/src/dcp.c b/src/dcp.c
 index 8855b68..996ce75 100644
 --- a/src/dcp.c
@@ -140,7 +166,7 @@ index a43732e..8dcbcd2 100644
                  float g = calibration.tone_curve[i + 1] / calibration.tone_curve[i];
                  if (g > gamma) {
 diff --git a/src/io_pipeline.c b/src/io_pipeline.c
-index 0879923..fa8487d 100644
+index 0879923..e34e669 100644
 --- a/src/io_pipeline.c
 +++ b/src/io_pipeline.c
 @@ -312,8 +312,7 @@ update_controls()
@@ -291,7 +317,34 @@ index 0879923..fa8487d 100644
                  if (state_io.camera != NULL) {
                          mp_process_pipeline_sync();
                          mp_camera_stop_capture(mpcamera);
-@@ -676,7 +664,7 @@ update_state(MPPipeline *pipeline, const mp_state_io *new_state)
+@@ -612,7 +600,7 @@ update_state(MPPipeline *pipeline, const mp_state_io *new_state)
+                         mpcamera = mp_camera_new(state_io.camera);
+                         state_io.mode_preview = NULL;
+                         state_io.mode_capture = NULL;
+-                        float score = 0;
++                        float score = -999999.0f;
+                         int area_preview =
+                                 state_io.preview_width * state_io.preview_height;
+                         if (area_preview == 0) {
+@@ -621,7 +609,7 @@ update_state(MPPipeline *pipeline, const mp_state_io *new_state)
+                         for (int m = 0; m < state_io.camera->num_modes; m++) {
+                                 float mscore = 0;
+                                 if (state_io.camera->modes[m]->rate > 29) {
+-                                        mscore += 1;
++                                        mscore += 100.0f;
+                                 }
+                                 int mode_area = state_io.camera->modes[m]->width *
+                                                 state_io.camera->modes[m]->height;
+@@ -652,6 +640,8 @@ update_state(MPPipeline *pipeline, const mp_state_io *new_state)
+                                 state_io.mode_preview = state_io.mode_capture;
+                         }
+                         if (state_io.mode_preview != NULL) {
++                                printf("[DEBUG_PREVIEW] Selected mode_preview: %dx%d @ %d fps\n",
++                                       state_io.mode_preview->width, state_io.mode_preview->height, state_io.mode_preview->rate);
+                                 if (state_io.camera->video_fd == 0) {
+                                         libmegapixels_open(state_io.camera);
+                                 }
+@@ -676,7 +666,7 @@ update_state(MPPipeline *pipeline, const mp_state_io *new_state)
          state_io.device_accel_rotation = new_state->device_accel_rotation;
          state_io.device_accel_rotation_good = new_state->device_accel_rotation_good;
  
@@ -326,7 +379,7 @@ index 1f57aa7..9d70d33 100644
          settings = g_settings_new(APP_ID);
          char *setting_postproc = g_settings_get_string(settings, "postprocessor");
 diff --git a/src/process_pipeline.c b/src/process_pipeline.c
-index 4e3fdd4..df01fe9 100644
+index 4e3fdd4..b7206da 100644
 --- a/src/process_pipeline.c
 +++ b/src/process_pipeline.c
 @@ -38,7 +38,6 @@ libmegapixels_camera *pr_camera;
@@ -453,6 +506,15 @@ index 4e3fdd4..df01fe9 100644
                  framecounter = 0;
                  process_aaa();
          }
+@@ -1076,7 +1088,7 @@ save_dng(const uint8_t *image, char *fname, int count)
+         }
+         libdng_set_orientation(&dng, orientation);
+         libdng_set_software(&dng, "Megapixels");
+-        libdng_set_neutral(&dng, state_proc.red, 1.0f, state_proc.blue);
++        libdng_set_neutral(&dng, 1.0f / state_proc.red, 1.0f, 1.0f / state_proc.blue);
+         libdng_set_analog_balance(&dng,
+                                   state_proc.balance[0],
+                                   state_proc.balance[1],
 @@ -1485,9 +1497,9 @@ on_output_changed(bool format_changed)
                  gles2_debayer_use(gles2_debayer);
          }

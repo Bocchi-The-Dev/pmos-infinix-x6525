@@ -1,5 +1,5 @@
 diff --git a/src/aaa.c b/src/aaa.c
-index 2d28158..23e6e07 100644
+index 2d28158..90c2f08 100644
 --- a/src/aaa.c
 +++ b/src/aaa.c
 @@ -39,12 +39,16 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
@@ -19,7 +19,7 @@ index 2d28158..23e6e07 100644
  		if (y > 220) {
  			too_bright++;
  		}
-@@ -57,22 +61,22 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+@@ -57,23 +61,24 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
  		}
  
  		// Whitebalance on the midrange pixels only
@@ -37,17 +37,20 @@ index 2d28158..23e6e07 100644
  	unsigned int p_too_bright = (too_bright * 100) / total;
  	unsigned int p_dark = (too_dark * 100) / total;
 +	unsigned int avg_y = total > 0 ? (unsigned int)(sum_y / total) : 0;
++	// Target scene luminance around 100-115 with highlight clipping protection
  	stats->exposure = 0;
 -	if (p_bright < 1) {
-+	if (avg_y < 125 && p_too_bright < 35) {
- 		stats->exposure = 1;
+-		stats->exposure = 1;
 -	}
 -	if (p_too_bright > 8) {
-+	} else if (avg_y > 150 || p_too_bright > 50) {
++	if (p_too_bright > 15 || avg_y > 120) {
  		stats->exposure = -1;
++	} else if (p_too_bright < 8 && avg_y < 95) {
++		stats->exposure = 1;
  	}
  	stats->blacklevel = 0;
-@@ -83,10 +87,11 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
+ 	if (p_dark < 1) {
+@@ -83,10 +88,11 @@ libmegapixels_aaa_software_statistics(libmegapixels_aaa_stats *stats, const unsi
  		stats->blacklevel = 1;
  	}
  
