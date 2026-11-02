@@ -330,3 +330,32 @@ source is "certain" above):
 (slice-header fields at +0x4c/+0x50/+0x54/+0x18/+0x1c, not yet named) and the meaning of the derived
 reference-structure values in `0x1048`. Then the second group (`0x1064`-`0x107c`, `0x1160`-`0x1170`,
 `0x1184`-`0x1198`), which is built from the reference lists.
+
+## The bitstream read protocol and the first decoder driver (patch 0067, experimental)
+`show_bits`/`read_bits` (disassembly): wait until `0x8020` bit 0 is set, write `n << 24` to `0x8008`,
+read the bits from `0x8010`; `read_bits` then writes `(n << 24) | 1` to `0x8008` to consume them.
+The driver uses this to skip `header_bit_size` bits of the slice header (in chunks of 32), then starts
+the slice. The second register group (reference-index tables, six-bit entries) is still only known
+structurally, which is why the driver handles intra slices only.
+
+Patch 0067 adds `vsp-dec.c`, `vsp.h` and `vsp-regs.h` to `sprd-vsp`: a V4L2 stateless decoder
+(`/dev/videoN` plus a media device) that is slice-based with Annex B start codes, 8-bit 4:2:0
+progressive, NV12 output. Per slice it (1) sets the bitstream module and skips the header,
+(2) writes the picture addresses (`0x1088`, `0x108c`, `0x1090`, `0x10b0`), (3) writes the packed words
+from the tables above, (4) enables the interrupt, writes `0x1038 = 0xffffffff`, `0x1028 = 1` and
+starts with `0x1030 = 0xa`. The interrupt completes the job; a 1 s watchdog resets the block
+(`0x1010 = 0xd0`) and fails the buffer.
+
+Everything that is a guess is marked in `vsp-regs.h`: the meaning of `0x1090`/`0x10b0` and the size
+of their side-data area (128 and 32 bytes per macroblock, appended to each NV12 buffer), which of the
+two deblocking offsets goes where, whether any interrupt means "done" (the status at `0x1120` is
+logged with `vsp-dec` dynamic debug), and the start offset of the bitstream module (`0x8000` takes
+the byte offset of the NAL header plus `0x400`). Not supported: P/B slices, scaling matrices,
+interlaced streams.
+
+First test on the phone (needs an intra-only H.264 clip, e.g. `ffmpeg -i in.mp4 -c:v libx264 -g 1
+-profile:v high -x264-params cabac=0 ...`, and a stateless-capable client such as `v4l2-request-test`
+or ffmpeg's v4l2-request hwaccel): `dmesg | grep -i vsp`, `ls /dev/video* /dev/media*`,
+`v4l2-ctl -d /dev/videoN --all`, then one decode with
+`echo 'file drivers/media/platform/sprd/vsp/vsp-dec.c +p' | sudo tee /sys/kernel/debug/dynamic_debug/control`.
+Expect failures first (timeouts or IOMMU faults); each one narrows down a guessed register.

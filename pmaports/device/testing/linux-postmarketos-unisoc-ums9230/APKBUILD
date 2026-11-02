@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=56
+pkgrel=57
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -107,6 +107,7 @@ source="
 	0064-media-i2c-s5k3l6-fix-power-up-sequence-and-settling-.patch
 	0065-media-i2c-ov8856-retry-module-identification-and-in.patch
 	0066-arm64-dts-sprd-infinix-x6525-fix-camera-sensor-socke.patch
+	0067-media-sprd-vsp-add-an-experimental-stateless-H.264-d.patch
 "
 builddir="$srcdir/linux"
 
@@ -137,7 +138,7 @@ package() {
 
 sha512sums="
 3fa24b0720994802fee53b0b343de722a3a4a9db547dff597411e7eb5cb15d63ec62120705b279edc559a78f6c67e1d1ec52adad4d72ffb4a611767e8ccb86f2  linux-v7.2-rc6-ums9230-0.tar.gz
-dbaf1e8594919b85dbf3808160a000018c30683cc618863d972484128ca2774aabbd778a89bce763d204a72dadf704adcd437aae1780c0e3caefb126771ab3d6  config-postmarketos-unisoc-ums9230.aarch64
+11fa52dc5abae00b0b33ae59ed1cae0fef6b14fa4d1106a2ee263866717da3ca4de512ae5eb09797f9fb3236c492b1b8de863a8aacb9a53fb99695cdfc0914b1  config-postmarketos-unisoc-ums9230.aarch64
 7eaff147db4d2dbaadb287ce72f11d4bbfb0abb70af36aff3001331777627a40e573d680d31079946be0234d3af0be9e7db8fabf4d87e5ce4a03ae4d106b23f3  0001-dt-bindings-vendor-prefixes-add-Infinix-Mobility.patch
 3f035560c3dcf79104266c382fe55bdf0a6ae434eb27f5e44b19430573fc6bff1f99248c6d48d04d6c0834722ddf690efed6f8c6791fd8e704f72708dd86f574  0002-dt-bindings-arm-sprd-add-Infinix-X6525-board.patch
 6cffa0dd1408d8652136fa6d77c63304b54c90e96a10cbf314a40e01bdc41e063fd16852d054f9bda1346a6402c6093f3232a751e40827a2e947f8007e2127e0  0003-arm64-dts-sprd-add-device-tree-for-Infinix-X6525.patch
@@ -203,4 +204,5 @@ cfcbb1436f6061d40767c9b55eea8021fce9995d465be247204fd4518bfab04bb6c38f60e5033f5f
 7c5772d4a458621e4108db8ba017bf8b33c2f87276dc1b589554404504fc96eff01f92188a929b312f6cd77209d0da4f160d585bea463d08fe9bbfed378208c1  0064-media-i2c-s5k3l6-fix-power-up-sequence-and-settling-.patch
 6315d7ef21dc623fd5a0303cdf638dbbbbe26889d472c193567c133bf4803cc2bbe1600dfae1d469f74f89b4b8f6879d991d8e606adf74f1b30aa7164256ceae  0065-media-i2c-ov8856-retry-module-identification-and-in.patch
 c5af09b86048a60c6012f1553cd4e3363857045789291d43613c62eda1ac630e261181cbbfdbfa0e13193b870de4b336b1fc54cae14737f8fc245ad06fa500fc  0066-arm64-dts-sprd-infinix-x6525-fix-camera-sensor-socke.patch
+14166d759db867fc016643a4d1966d6d5ead30533890c42f8a56ea2078ee76a5d6c2183d3edd02dbf491426b577a145849caadf7e5555042f5e62c32cf4e9a5f  0067-media-sprd-vsp-add-an-experimental-stateless-H.264-d.patch
 "
