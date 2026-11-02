@@ -153,26 +153,29 @@ boot on both, but **only the eMMC route has been tested on hardware**:
 
 - **UFS.** U-Boot now carries the reeder's UFS stack (`CMD_UFS`, `SCSI`, `UFS`, `UFS_SPRD_UMS9230`) and
   scans the scsi bus right after mmc (`uboot/board/unisoc/ums9230/infinix-x6525.env`); the kernel DTS
-  enables `&ufs` with the eMMC core rail as `vcc` (kernel patch 0069), and the controller driver is built
-  in. The work comes from the Classity-Real fork. On a UFS unit the `cache` and `userdata` partitions
-  live on the UFS, so the same `fastboot flash cache` / `userdata` steps apply. Known gaps: `vcc` is
-  assumed to be the eMMC rail and `vccq` is not described; the BT/Wi-Fi MAC preboot reads only
-  `mmc 0#prodnv`, so a UFS unit keeps the random BD address; the eMMC cache units look for
-  `/dev/mmcblk0` and do nothing there. Check which kind of unit you have first: in the stock bootloader
-  or Android, `cat /proc/cmdline` says `sprdboot.flash=emmc` or names the UFS controller
-  (`androidboot.boot_devices=...20200000.ufs`). If the phone stops at the U-Boot prompt, `ufs` and `scsi
-  scan` there show whether the controller came up.
+  enables `&ufs` with `vddemmccore` as `vcc` (kernel patch 0069), and the controller driver is built
+  in. The work started from the Classity-Real fork; the `vcc` choice was then checked against the stock
+  device tree, whose (disabled) UFS node names that same LDO as `vcc-supply` and no `vccq`. On a UFS
+  unit the `cache` and `userdata` partitions live on the UFS, so the same `fastboot flash cache` /
+  `userdata` steps apply. The MAC preboot falls back to `scsi 0#prodnv` when the mmc one finds nothing
+  (U-Boot patch 0009), and the eMMC cache units only run when `/dev/mmcblk0` really is an eMMC (they
+  check `/sys/block/mmcblk0/device/type`). Check which kind of unit you have first: in the stock
+  bootloader or Android, `cat /proc/cmdline` says `sprdboot.flash=emmc` or names the UFS controller
+  (`androidboot.boot_devices=...20200000.ufs`). If the phone stops at the U-Boot prompt, `ufs init`
+  and `scsi scan` there show whether the controller came up. Nothing here has run on a UFS unit.
 - **microSD.** Run the `rom` workflow with `sdcard` ticked: it also uploads `x6525-rom-sdcard` with
   `x6525-sdcard.img` (the boot and root filesystems on one MBR image, built by
   `tools/make-sd-image.py` without a second install) and `boot.img`. Flash `boot.img` to `boot_a` as
   usual (U-Boot), write the image to the card with `dd if=x6525-sdcard.img of=/dev/sdX bs=4M
   conv=fsync`, then run `resize2fs` on the card's second partition to use the rest of it. The kernel
   side polls the slot (`broken-cd`) and leaves the UHS modes off (kernel patch 0068, from the
-  Bocchi-The-Dev fork). Unverified: that U-Boot can read the card at all - the slot's rails
-  (`vddsdcore`, `vddsdio`) are PMIC LDOs and U-Boot has no regulator driver, so unless the stock
-  bootloader leaves them on the slot may be unpowered when U-Boot looks. U-Boot scans mmc devices in
-  order, so with an eMMC unit's own `cache` partition carrying a boot filesystem the internal one may
-  win; clear it (or use a UFS/eMMC unit with the card as the only boot source) when testing the card.
+  Bocchi-The-Dev fork). U-Boot has no regulator driver and the stock system leaves
+  the slot's rails (`vddsdcore`, `vddsdio`, SC2730 LDOs) off, so the preboot now runs `pmicsd on` (U-Boot
+  patch 0010), which switches a disabled rail on at 3.3 V through the PMIC's ADI the way the kernel's
+  regulator driver does; `pmicsd` alone prints their state at the prompt. That register sequence is
+  copied from the kernel driver and has not been run. U-Boot scans mmc devices in order, so with the
+  internal `cache` partition carrying a boot filesystem the internal one may win; clear it (or use a
+  unit with nothing bootable inside) when testing the card.
 
 ## 1. U-Boot starts
 

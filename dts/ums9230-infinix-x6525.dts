@@ -289,11 +289,11 @@
  * UFS - the alternate internal storage. The X6525 shipped with either this or
  * the eMMC above; the UFS units boot the same image, found by U-Boot's scsi
  * scan, and the initramfs finds the root by UUID whatever the disk is called.
- * vcc is taken to be the same core rail the eMMC runs on (copied from the
- * Classity-Real fork, not checked against a UFS unit's stock tree); vccq and
- * vccq2 are not described and the controller treats them as optional. The
- * driver is built in (CONFIG_SCSI_UFS_SPRD=y). On an eMMC unit the controller
- * probes, finds no device and gives up.
+ * vcc is the eMMC core rail (vddemmccore): the stock device tree's disabled
+ * ufs@20200000 node names that LDO as its vcc-supply (and marks it
+ * vcc-fixed-regulator), and names no vccq, so none is described here. The
+ * driver is built in (CONFIG_SCSI_UFS_SPRD=y). On an eMMC unit the
+ * controller probes, finds no device and gives up.
  */
 &ufs {
 	vcc-supply = <&vddemmccore>;

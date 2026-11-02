@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=66
+pkgrel=67
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -505,6 +505,7 @@ ConditionPathExists=/dev/mmcblk0
 
 [Service]
 Type=oneshot
+ExecCondition=/bin/sh -c 'grep -qx MMC /sys/block/mmcblk0/device/type'
 ExecStartPre=-/bin/sync
 ExecStartPre=-/sbin/blockdev --flushbufs /dev/mmcblk0
 ExecStartPre=-/usr/bin/mmc extcsd write 32 1 /dev/mmcblk0
@@ -534,6 +535,7 @@ ConditionPathExists=/dev/mmcblk0
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+ExecCondition=/bin/sh -c 'grep -qx MMC /sys/block/mmcblk0/device/type'
 ExecStart=/bin/true
 ExecStop=-/bin/sync
 ExecStop=-/sbin/blockdev --flushbufs /dev/mmcblk0
