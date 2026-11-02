@@ -163,7 +163,7 @@ index 1f57aa7..0d780dd 100644
          settings = g_settings_new(APP_ID);
          char *setting_postproc = g_settings_get_string(settings, "postprocessor");
 diff --git a/src/process_pipeline.c b/src/process_pipeline.c
-index 4e3fdd4..ebdd947 100644
+index 4e3fdd4..ad0d2ef 100644
 --- a/src/process_pipeline.c
 +++ b/src/process_pipeline.c
 @@ -38,7 +38,6 @@ libmegapixels_camera *pr_camera;
@@ -174,17 +174,6 @@ index 4e3fdd4..ebdd947 100644
  
  static char movie_script[255];
  
-@@ -282,8 +281,8 @@ init_gl(MPPipeline *pipeline, GdkSurface **surface)
-         for (size_t i = 0; i < NUM_BUFFERS; ++i) {
-                 glGenTextures(1, &output_buffers[i].texture_id);
-                 glBindTexture(GL_TEXTURE_2D, output_buffers[i].texture_id);
--                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
--                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-         }
- 
-         glBindTexture(GL_TEXTURE_2D, 0);
 @@ -334,8 +333,10 @@ static void
  update_control(controlstate *control)
  {
@@ -237,29 +226,7 @@ index 4e3fdd4..ebdd947 100644
                  framecounter = 0;
                  process_aaa();
          }
-@@ -1450,8 +1454,8 @@ mp_process_pipeline_capture()
- static void
- on_output_changed(bool format_changed)
- {
--        output_buffer_width = state_proc.mode->width / 2;
--        output_buffer_height = state_proc.mode->height / 2;
-+        output_buffer_width = state_proc.mode->width;
-+        output_buffer_height = state_proc.mode->height;
- 
-         if (state_proc.mode->rotation != 0 && state_proc.mode->rotation != 180) {
-                 int tmp = output_buffer_width;
-@@ -1459,6 +1463,10 @@ on_output_changed(bool format_changed)
-                 output_buffer_height = tmp;
-         }
- 
-+        printf("Preview output buffer: %dx%d (from sensor %dx%d)\n",
-+               output_buffer_width, output_buffer_height,
-+               state_proc.mode->width, state_proc.mode->height);
-+
-         for (size_t i = 0; i < NUM_BUFFERS; ++i) {
-                 glBindTexture(GL_TEXTURE_2D, output_buffers[i].texture_id);
-                 glTexImage2D(GL_TEXTURE_2D,
-@@ -1572,9 +1580,7 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+@@ -1572,9 +1576,7 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
                          state_proc.calibration = parse_calibration_file(cf);
                  } else {
                          fprintf(stderr, "No calibration for %s\n", state_proc.camera->name);
@@ -270,7 +237,7 @@ index 4e3fdd4..ebdd947 100644
                          memcpy(state_proc.calibration.color_matrix_1, IDENTITY, 9 * sizeof(float));
                          memcpy(state_proc.calibration.color_matrix_2, IDENTITY, 9 * sizeof(float));
                  }
-@@ -1591,8 +1597,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
+@@ -1591,8 +1593,15 @@ update_state(MPPipeline *pipeline, const mp_state_proc *new_state)
                  on_output_changed(format_changed);
          }
  
