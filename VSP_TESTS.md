@@ -147,3 +147,23 @@ camera or the display behaves differently from the previous build, say so.
 - Registers dead or the bus hangs: check whether the MM domain needs its own enable, whether the
   `vsp-eb` gate parent ordering matters, and the `vsp-dev-eb-syscon` bit from the stock tree
   (`0x9 0x4 0x20`).
+
+## Test 5: the JPEG register lab (patch 0070)
+
+`/sys/kernel/debug/sprd-jpg/` gains `lab_cmd` (write commands), `lab_out` (read results) and
+`lab_buf0..3` (DMA buffers, readable and writable). One command at a time:
+
+```
+sudo modprobe sprd-vsp            # if not loaded yet
+echo on | sudo tee /sys/kernel/debug/sprd-jpg/lab_cmd
+sudo cat /sys/kernel/debug/sprd-jpg/lab_out
+```
+
+Step 1, are the registers plain read/write and does the table window take values?
+(`tools/re/jpeg-lab-tables.py libjpeg_hw_sprd.so > tables.lab`, then `cat tables.lab | sudo tee .../lab_cmd`;
+`lab_out` marks every write that does not read back as `(DIFFERS)`.)
+
+Step 2, buffers: `buf 0 65536`, `buf 1 1048576`; `lab_out` prints their bus addresses; a JPEG can be
+loaded with `sudo dd if=test.jpg of=/sys/kernel/debug/sprd-jpg/lab_buf0`.
+
+Commands: `on off w r poll buf wb bufdump irq clear` (see the header of `vsp-lab.c`).
