@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=67
+pkgrel=68
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -59,7 +59,7 @@ depends="
 # mkinitfs runs.
 makedepends="devicepkg-dev"
 # TEMPORARY DIAGNOSTICS in kernel-cmdline.conf (remove once the first-boot GPU job timeout at ~29 s,
-# 'gpu sched timeout, js=1', is understood): log_buf_len=16M, panfrost.dyndbg=+p, trace_buf_size=8M and
+# 'gpu sched timeout, js=1', is understood): log_buf_len=16M, trace_buf_size=8M (panfrost.dyndbg=+p was removed: it logged every job submission) and
 # trace_event=gpu_scheduler,clk:clk_set_rate,regulator:regulator_set_voltage_complete. Read them with
 # `sudo dmesg` and `sudo cat /sys/kernel/tracing/trace` (or /sys/kernel/debug/tracing/trace).
 # kernel-cmdline.conf goes to /usr/lib/kernel-cmdline.d/50-$pkgname.conf
@@ -1427,7 +1427,7 @@ EOF
 
 sha512sums="
 52f6b1fdf5d4becb2ecd26b63d917696671916348c82215d3a6c005bc2e0ad70993892e2e4b85ff61bef30879a2d1d505e569438a91b22c07ea3ebbb3d61c683  deviceinfo
-bd2ac31fbeeedf5f1d604f54dca9858071f591903e709ffd1f08f87267582cb215fb84e242b72da7a891786f31b4202437acc9bf66a6cc728ad6f2d811cbdfde  kernel-cmdline.conf
+c3826a5c48b38fcd67de87939aa49b302e826091fd7c46c6150f47c13883f9edb934f58ea70221c48e6ee05983bb878e46152330b27abdfbf67d2f34b668259e  kernel-cmdline.conf
 c6c0dbe41167f41879b66fdd92163cd0ee267388737a23bbba3f790c1ba95709b035c4dfcdd775f498e5fffe04012be573de87bbd3e4830ce571be5011475164  modules-initfs
 401b778774f15dd370e27d3ca6f2b226f18bf7d411fb50bf7ab3a10ce163739fcb1d97be1aa00038fc50f6affb4f4c56350fd21832a93072054ac3bbb735ddd4  x6525-boot-check
 d0f0db1e1bb5f45b93ba0d54c89af1efc331e1d1b04342aec109930287a6850c6b490ad47c6c148e9dc1d859e90ddbb5e8c92424550c1aaace7833034c75ed8a  x6525-gpu.rules
