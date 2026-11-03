@@ -9,7 +9,9 @@
 #   2. the compositor process holds the render node open and has the Panfrost
 #      Mesa driver mapped (software rendering maps LLVM/swrast instead);
 #   3. the GPU's job interrupt counter and devfreq state move while you use the UI;
-#   4. the GPU clocks left their 26 MHz reset parent (patches 0028/0029).
+#   4. the GPU clocks left their 26 MHz reset parent (patches 0028/0029);
+#   5. thermal: the GPU's thermal zone has a passive trip and a devfreq cooling
+#      device bound to it, and the GPU is throttled when it is over the trip.
 # It only reads state. sudo is used, when available, for dmesg and clk_summary.
 # clk_summary columns are: clock enable prepare protect rate accuracy phase duty.
 # Every line is PASS, FAIL or INFO; a final VERDICT line sums it up.
@@ -75,6 +77,11 @@ if command -v eglinfo >/dev/null 2>&1; then
 	case "$e" in *llvmpipe*) fail "Mesa clients get llvmpipe" ;; *Mali*|*Panfrost*) pass "Mesa clients get Panfrost" ;; esac
 fi
 
+tz=
+for z in /sys/class/thermal/thermal_zone*; do
+	[ "$(cat "$z"/type 2>/dev/null)" = gpu-thermal ] && { tz=$z; break; }
+done
+tpeak=0 cpeak=0
 echo "== 3. The GPU does work while the UI moves =="
 irq() { awk '/panfrost|mali/ && /job|gpu|mmu/ {for(i=2;i<NF;i++) if ($i ~ /^[0-9]+$/) s+=$i} END{print s+0}' /proc/interrupts; }
 dev=$(ls -d /sys/class/devfreq/*gpu* 2>/dev/null | head -1)
@@ -89,6 +96,14 @@ echo "      for the next 6 s: swipe the shade up and down / scroll an app / run 
 mx=0; i=0
 while [ "$i" -lt 12 ]; do
 	[ -n "$dev" ] && { f=$(cat "$dev"/cur_freq 2>/dev/null); [ "${f:-0}" -gt "$mx" ] && mx=$f; }
+	if [ -n "$tz" ]; then
+		t=$(cat "$tz"/temp 2>/dev/null); [ "${t:-0}" -gt "$tpeak" ] && tpeak=$t
+		for c in "$tz"/cdev*; do
+			[ -e "$c" ] || continue
+			case "$(cat "$c"/type 2>/dev/null)" in *gpu*|*devfreq*|*mali*) ;; *) continue ;; esac
+			cs_=$(cat "$c"/cur_state 2>/dev/null); [ "${cs_:-0}" -gt "$cpeak" ] && cpeak=$cs_
+		done
+	fi
 	sleep 0.5; i=$((i + 1))
 done
 b=$(irq)
@@ -112,6 +127,43 @@ fi
 echo "== 5. Faults =="
 f=$($S dmesg 2>/dev/null | grep -iE 'panfrost.*(fault|timeout|error|reset)|gpu sched timeout|iommu.* fault' | tail -5)
 [ -n "$f" ] && { fail "GPU faults in dmesg:"; printf '%s\n' "$f" | sed 's/^/      /'; } || pass "no GPU faults in dmesg"
+
+echo "== 6. Thermal: the GPU is throttled before it overheats =="
+# The board dts gives the SoC's gpu-thermal zone one passive trip (70 C) and binds
+# Panfrost's devfreq cooling device to it. This checks that wiring, then what the
+# GPU did during section 3. To see throttling itself, keep the GPU loaded for a
+# few minutes (a WebGL page or a long video) and re-run: INFO lines below
+# report the peak temperature and cooling state seen.
+if [ -z "$tz" ]; then
+	fail "no thermal zone of type gpu-thermal (the SoC's sensor node is not registered)"
+else
+	temp=$(cat "$tz"/temp 2>/dev/null)
+	info "$(basename "$tz") gpu-thermal: ${temp:-?} m C now, policy $(cat "$tz"/policy 2>/dev/null)"
+	trip=; ttype=; n=0
+	while [ -e "$tz/trip_point_${n}_temp" ]; do
+		tt=$(cat "$tz/trip_point_${n}_type" 2>/dev/null); tv=$(cat "$tz/trip_point_${n}_temp" 2>/dev/null)
+		info "trip $n: $tt at $tv m C"
+		[ "$tt" = passive ] && [ -z "$trip" ] && { trip=$tv; ttype=$n; }
+		n=$((n + 1))
+	done
+	if [ -n "$trip" ]; then pass "gpu-thermal has a passive trip at $trip m C"
+	else fail "gpu-thermal has no passive trip: nothing throttles the GPU (dts gpu-thermal override missing)"; fi
+	cd_=
+	for c in "$tz"/cdev*; do
+		[ -e "$c" ] || continue
+		ty=$(cat "$c"/type 2>/dev/null)
+		case "$ty" in *gpu*|*devfreq*|*mali*) cd_=$c; info "cooling device: $ty, state $(cat "$c"/cur_state 2>/dev/null) of max $(cat "$(readlink -f "$c")"/max_state 2>/dev/null)" ;; esac
+	done
+	[ -n "$cd_" ] && pass "a devfreq cooling device is bound to gpu-thermal" ||
+		fail "no GPU cooling device bound to gpu-thermal (#cooling-cells missing on the gpu node, or no cooling-maps)"
+	info "peak during the 6 s test: ${tpeak} m C, cooling state ${cpeak}"
+	if [ -n "$trip" ] && [ "${temp:-0}" -ge "$trip" ] 2>/dev/null; then
+		st=$(cat "$cd_"/cur_state 2>/dev/null)
+		[ "${st:-0}" -gt 0 ] && pass "over the trip and throttling (cooling state $st)" ||
+			fail "over the trip ($temp >= $trip m C) but the cooling state is 0: the GPU is not being throttled"
+	else info "below the trip: throttling is not expected yet (load the GPU for a few minutes to see it)"; fi
+	[ -n "$dev" ] && info "GPU frequency now: $(cat "$dev"/cur_freq 2>/dev/null) Hz, limit max_freq $(cat "$dev"/max_freq 2>/dev/null) Hz"
+fi
 
 echo
 if [ "$F" -eq 0 ]; then echo "VERDICT: the GPU is in use ($R checks passed)"
