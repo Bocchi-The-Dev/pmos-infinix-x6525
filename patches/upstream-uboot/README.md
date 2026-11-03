@@ -44,3 +44,12 @@ the DTB inside the CI-built `u-boot.bin` carries it.
 No `board/` directory and no Kconfig or Makefile change: `SYS_BOARD` and `SYS_CONFIG_NAME` already
 default to `ums9230` for `TARGET_UMS9230`. The UFS/SCSI stack stays in the defconfig (patch 0008): the board shipped
 with either eMMC or UFS. The MAC preboot falls back to `scsi 0#prodnv` (patch 0009).
+
+## UFS only on UFS units (patch 0011)
+
+The kernel's device tree leaves the UFS controller disabled (kernel patch 0071). The preboot script sets
+`ufs_present` when a `scsi scan` finds a disk (it only scans when the eMMC `prodnv` had no MACs, i.e. on UFS
+units), and `ft_board_setup` then marks `sprd,ums9230-ufs` okay or disabled. An eMMC unit, or a microSD boot
+on one, never touches the controller. Reason: a microSD image synced from this tree hung right after U-Boot
+with a soft lockup (`rcu_exp_gp_kthr`) on an eMMC phone; probing a controller nothing is attached to was the
+only new always-on hardware access.

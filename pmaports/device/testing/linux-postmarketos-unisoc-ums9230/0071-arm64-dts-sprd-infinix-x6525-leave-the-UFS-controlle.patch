@@ -1,0 +1,36 @@
+From 497d2b0b6c38d07db72742c1a6464d82a0adc561 Mon Sep 17 00:00:00 2001
+From: ci <a@b>
+Date: Wed, 4 Nov 2026 05:22:43 +0800
+Subject: [PATCH] arm64: dts: sprd: infinix-x6525: leave the UFS controller to
+ U-Boot
+
+Describe the UFS controller's supply but keep it disabled: U-Boot marks it
+okay only when its scsi scan found a disk, so an eMMC unit (or a microSD
+boot on one) never probes the controller.
+---
+ arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+index b38eefc06..d8d9afdd0 100644
+--- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -292,12 +292,12 @@ &sdio3 {
+  * vcc is the eMMC core rail (vddemmccore): the stock device tree's disabled
+  * ufs@20200000 node names that LDO as its vcc-supply (and marks it
+  * vcc-fixed-regulator), and names no vccq, so none is described here. The
+- * driver is built in (CONFIG_SCSI_UFS_SPRD=y). On an eMMC unit the
+- * controller probes, finds no device and gives up.
++ * driver is built in (CONFIG_SCSI_UFS_SPRD=y). The node is left disabled here
++ * on purpose: U-Boot marks it okay only when its scsi scan found a disk (the
++ * ufs_present variable), so an eMMC unit never touches the controller.
+  */
+ &ufs {
+ 	vcc-supply = <&vddemmccore>;
+-	status = "okay";
+ };
+ 
+ /* ---- USB ----------------------------------------------------------------
+-- 
+2.43.0
+

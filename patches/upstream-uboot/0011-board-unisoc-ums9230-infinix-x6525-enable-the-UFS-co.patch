@@ -1,0 +1,53 @@
+From 2ef2cd512e1122f05f8745ce59ee96067ab04913 Mon Sep 17 00:00:00 2001
+From: Seuj09 <newmail0967@gmail.com>
+Date: Wed, 4 Nov 2026 05:17:52 +0800
+Subject: [PATCH] board: unisoc: ums9230: infinix-x6525: enable the UFS
+ controller only on UFS units
+
+The kernel's device tree leaves the UFS controller disabled; the preboot
+script sets ufs_present when a scsi scan finds a disk, and ft_board_setup
+then marks the controller okay. On an eMMC unit the kernel never probes it.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BfvoN2QMhDVD6rSACbEu3p
+---
+ board/unisoc/ums9230/board.c           | 9 +++++++++
+ board/unisoc/ums9230/infinix-x6525.env | 3 +++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/board/unisoc/ums9230/board.c b/board/unisoc/ums9230/board.c
+index 679b4985..811c4a4e 100644
+--- a/board/unisoc/ums9230/board.c
++++ b/board/unisoc/ums9230/board.c
+@@ -25,5 +25,14 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+ 	do_fixup_by_compat(blob, "sprd,bluetooth-sipc",
+ 			   "local-bd-address", mac, ETH_ALEN, 1);
+ 
++	/*
++	 * The UFS controller is only described as usable on units whose internal
++	 * storage U-Boot found on it (ufs_present, set by the preboot script). On
++	 * an eMMC unit the kernel never touches the controller.
++	 */
++	do_fixup_by_compat(blob, "sprd,ums9230-ufs", "status",
++			   env_get("ufs_present") ? "okay" : "disabled",
++			   env_get("ufs_present") ? 5 : 9, 1);
++
+ 	return 0;
+ }
+diff --git a/board/unisoc/ums9230/infinix-x6525.env b/board/unisoc/ums9230/infinix-x6525.env
+index ef3691e0..8ec5193b 100644
+--- a/board/unisoc/ums9230/infinix-x6525.env
++++ b/board/unisoc/ums9230/infinix-x6525.env
+@@ -10,6 +10,9 @@ preboot=
+  fi;
+  if test -z "${bdaddr}"; then
+   scsi scan;
++  if part size scsi 0 1 ufs_first; then
++   setenv ufs_present 1;
++  fi;
+   if load scsi 0#prodnv 0x9c000000 /btmac.txt 0x11; then
+    mw.b 0x9c000011 0;
+    setexpr.s bdaddr *0x9c000000;
+-- 
+2.43.0
+
