@@ -65,6 +65,19 @@ for f in $(ls /vendor/lib64/*vsp* /vendor/lib64/libomx*sprd* /vendor/lib64/libst
 	[ -f "$f" ] && [ "$(wc -c < "$f")" -lt 8000000 ] && cp "$f" "$OUT"/ 2>/dev/null
 done
 
+# the JPEG codec is driven from userspace too: its register programming lives in a
+# vendor library (camera HAL / libjpeg hw wrapper), not in jpg.ko. Grab every library
+# that opens /dev/sprd_jpg or names the jpg codec, wherever it is.
+for d in /vendor/lib64 /vendor/lib /system/lib64 /system/lib /system_ext/lib64 /odm/lib64; do
+	for f in $(ls "$d"/*.so 2>/dev/null); do
+		if grep -q -a -E 'sprd_jpg|/dev/sprd_jpg|jpg_codec|sprd_jpeg' "$f" 2>/dev/null &&
+		   [ "$(wc -c < "$f")" -lt 12000000 ]; then
+			cp "$f" "$OUT"/ 2>/dev/null
+			echo "$f" >> "$OUT"/jpeg-libs.txt
+		fi
+	done
+done
+
 # the module's own strings often name every register and ioctl
 for k in "$OUT"/*.ko; do
 	[ -f "$k" ] && strings "$k" 2>/dev/null | grep -iE 'reg|offset|base|irq|mmu|clk|freq|ioctl|vsp|vpu|dec|enc|jpg|ver' | head -300 > "$k.strings.txt"

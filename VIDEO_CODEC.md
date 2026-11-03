@@ -367,3 +367,29 @@ the same job, and a late watchdog could reset the codec under the next job (the 
 job is now claimed under `job_lock` by whoever gets there first); the capture buffer's
 payload was never set, so userspace saw `bytesused = 0`. Still open: any interrupt counts
 as success (error bits unknown), side-data sizes are guesses, P/B slices unsupported.
+
+## JPEG codec: what `jpg.ko` shows (and what is still missing)
+
+The stock dump has only `jpg.ko`; the userspace JPEG library is not in it. `jpg.ko` is as thin as
+`vsp.ko`: it enables clocks (`clk_jpg`, `jpg_ckg_eb`, `jpg_domain_eb`, `clk_aon_jpg_emc_eb`,
+`clk_vsp_mq_ahb_eb`), does dma-buf to IOVA mapping (own IOMMU, raw int at window +0x3a4/+0x3ac)
+and sleeps for the interrupt. What it does reveal about the register window (base `0x36000000`):
+
+| Offset | Use in `jpg_isr` / `jpg_poll_mbio_vlc_done` |
+|--------|---------------------------------------------|
+| `+0x04` | non-zero while the block is enabled (ISR bails out otherwise) |
+| `+0x2c` | interrupt status; bits 0 and 1 and 3 are the sources checked (mask `0xb`) |
+| `+0x28` | interrupt clear: write the bit(s) just seen (1, 2, 8); `0xf` clears all after a timeout |
+| `+0x20` | read in the timeout message (a status word) |
+
+Two completions are waited for separately, `mbio` and `vlc` (bit 3 = the VLC/bitstream stage, bit 0/1 =
+MBIO stage, order not yet established), with a 250 ms timeout each. ioctls use magic `'m'` (0x6d):
+`0x6d01` (W, 4 B), `0x6d02` (R, 4 B), `0x6d09` (R, 4 B), `0x6d0b` (RW, 24 B: get iova),
+`0x6d0c` (W, 24 B: free iova), as in the VSP.
+
+Nothing in the kernel module programs the decode itself (size, quant and Huffman tables, buffer
+addresses, start): all of that is in the userspace library, so a decoder driver cannot be written
+honestly yet. `tools/dump-stock-codec.sh` now also copies every library that references
+`sprd_jpg`/`/dev/sprd_jpg` (listed in `jpeg-libs.txt`). Next step when a stock dump is available:
+disassemble it like the AVC library, then write a V4L2 stateless JPEG decoder (`V4L2_PIX_FMT_JPEG_RAW`)
+in `sprd-vsp.ko`, reusing the m2m/request plumbing of `vsp-dec.c`.
