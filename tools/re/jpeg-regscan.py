@@ -40,6 +40,10 @@ def run(name):
             elif op=='blx' or op=='bl':
                 tgt=ar[0]
                 r0,r1,r2=rg.get('r0'),rg.get('r1'),rg.get('r2')
+                if tgt=='0x19f50':
+                    r3=rg.get('r3')
+                    o=None if r1 is None else (r1-0x62300000)&M
+                    out.append((a,'P',o,('mask=%s exp=%s'%(r2 if r2 is None else hex(r2), r3 if r3 is None else hex(r3)))))
                 if tgt in('0x19f30','0x19f40'):
                     kind='W' if tgt=='0x19f30' else 'R'
                     o=None if r1 is None else (r1-0x62300000)&M
@@ -57,4 +61,4 @@ def run(name):
 for n in sys.argv[1:]:
     print('==',n)
     for a,k,o,v in run(n):
-        print(a,k,'reg 0x%x'%o if o is not None else 'reg ?', ('= 0x%x'%v) if v is not None else '')
+        print(a,k,'reg 0x%x'%o if o is not None else 'reg ?', (v if isinstance(v,str) else '= 0x%x'%v) if v is not None else '')

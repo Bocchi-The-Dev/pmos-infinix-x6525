@@ -433,3 +433,23 @@ words are (bitstream address/size vs output planes), the table upload format, an
 `0x2c` that mean "frame done" versus "error". Next: read `JPEGFW_configure_vld_reg_jpegDec`,
 `JPEG_HWDecStart` and `JPEG_HWWaitingEnd` (they go through other PLT stubs, which the scanner does not
 follow yet), then implement a `V4L2_PIX_FMT_JPEG_RAW` stateless decoder like `vsp-dec.c`.
+
+### JPEG: table upload and completion (second pass)
+
+- `JPEG_HWWaitingEnd` polls `0x168` with mask `1` until it reads `0` (AXI master idle), up to 0xffffff
+  reads; `jpg_read_reg_poll(ctx, off, mask, expected, timeout)` is the library's polling helper.
+  The frame-done itself arrives as the interrupt (`0x2c` bits, see the `jpg.ko` table above), which
+  the library waits for through the driver's ioctl, then it polls `0x168`.
+- `JPEGFW_configure_vld_reg_jpegDec` loads the entropy-decoder tables through the register file at
+  `0x48`..`0x14c`. With the library's default tables (`ctx 0xe9` set) it writes `0x48` and `0x4c`
+  from `g_huffTab[0..1]`, then 64 words to `0x50`..`0x14c` from `g_huffTab[2..]` (`g_huffTab` is
+  `0x288` bytes, and the library also copies the whole block to a second place). With the JPEG's own
+  tables it builds them (`JPEGFW_build_hufftab_jpegDec`), writes 16 halfwords of DC/AC code-length
+  data to `0x50`.. and `0x90`.., then calls a helper (`0x1176c`) once for luma (tables at `+0x44`)
+  and once for chroma (`+0xcc`) that writes the code values to the window starting at `0x110`.
+  Quantisation tables go through `JpegEnc_QTableCfg`-style writes (decode side:
+  `JPEGFW_AdjustQuantTbl_Dec`).
+
+Plan: a debugfs test in `sprd-vsp.ko` that replays this exact sequence for a small baseline JPEG
+(default tables, 4:2:0) and logs `0x2c`, `0x15c`, `0x168` and the output, so the next boot of the phone
+turns these guesses into facts before a V4L2 driver is built on them.
