@@ -68,13 +68,12 @@ done
 # the JPEG codec is driven from userspace too: its register programming lives in a
 # vendor library (camera HAL / libjpeg hw wrapper), not in jpg.ko. Grab every library
 # that opens /dev/sprd_jpg or names the jpg codec, wherever it is.
-for d in /vendor/lib64 /vendor/lib /system/lib64 /system/lib /system_ext/lib64 /odm/lib64; do
-	for f in $(ls "$d"/*.so 2>/dev/null); do
-		if grep -q -a -E 'sprd_jpg|/dev/sprd_jpg|jpg_codec|sprd_jpeg' "$f" 2>/dev/null &&
-		   [ "$(wc -c < "$f")" -lt 12000000 ]; then
-			cp "$f" "$OUT"/ 2>/dev/null
-			echo "$f" >> "$OUT"/jpeg-libs.txt
-		fi
+for d in /vendor/lib64 /vendor/lib /system/lib64 /system_ext/lib64 /odm/lib64; do
+	for f in $(ls "$d" 2>/dev/null | grep -iE 'jpeg|jpg|sprd.*(img|image|cam)|camera.*sprd|libsprd|libmm|libhwjpeg' | grep '\.so$'); do
+		f="$d/$f"
+		[ -f "$f" ] && [ "$(wc -c < "$f")" -lt 12000000 ] || continue
+		cp "$f" "$OUT"/ 2>/dev/null
+		echo "$f" >> "$OUT"/jpeg-libs.txt
 	done
 done
 
