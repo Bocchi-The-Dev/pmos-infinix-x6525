@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=68
+pkgrel=69
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -1299,6 +1299,19 @@ EOF
 GSK_RENDERER=ngl
 EOF
 
+	# Unclean power-offs (a hard reset after a freeze, a flat battery) leave the
+	# eMMC with whatever it had not yet been given, and the initramfs then stops
+	# at "needs manual repair (fsck)". Give the disk dirty data sooner: the kernel
+	# starts writeback after 1 s instead of 5 s, treats data as old after 3 s
+	# instead of 30 s, and caps the amount that can be waiting. (The root
+	# filesystem is also mounted with commit=1, see kernel-cmdline.conf.)
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/sysctl.d/60-x6525-writeback.conf <<'EOF'
+vm.dirty_writeback_centisecs = 100
+vm.dirty_expire_centisecs = 300
+vm.dirty_background_bytes = 8388608
+vm.dirty_bytes = 33554432
+EOF
+
 	# Megapixels camera configuration (both Megapixels 2.x .conf and 1.x .ini)
 	mkdir -p "$pkgdir"/usr/share/megapixels/config
 	mkdir -p "$pkgdir"/etc/megapixels/config
@@ -1427,7 +1440,7 @@ EOF
 
 sha512sums="
 52f6b1fdf5d4becb2ecd26b63d917696671916348c82215d3a6c005bc2e0ad70993892e2e4b85ff61bef30879a2d1d505e569438a91b22c07ea3ebbb3d61c683  deviceinfo
-c3826a5c48b38fcd67de87939aa49b302e826091fd7c46c6150f47c13883f9edb934f58ea70221c48e6ee05983bb878e46152330b27abdfbf67d2f34b668259e  kernel-cmdline.conf
+73a15ed2df43fa9a548f6db50c6682f70b0358135f24acb93b86c2454ca5898d465fbc253a427f6423e80999a4c8c003f7bac7e0e25838e971f63a2659bef1ec  kernel-cmdline.conf
 c6c0dbe41167f41879b66fdd92163cd0ee267388737a23bbba3f790c1ba95709b035c4dfcdd775f498e5fffe04012be573de87bbd3e4830ce571be5011475164  modules-initfs
 401b778774f15dd370e27d3ca6f2b226f18bf7d411fb50bf7ab3a10ce163739fcb1d97be1aa00038fc50f6affb4f4c56350fd21832a93072054ac3bbb735ddd4  x6525-boot-check
 d0f0db1e1bb5f45b93ba0d54c89af1efc331e1d1b04342aec109930287a6850c6b490ad47c6c148e9dc1d859e90ddbb5e8c92424550c1aaace7833034c75ed8a  x6525-gpu.rules

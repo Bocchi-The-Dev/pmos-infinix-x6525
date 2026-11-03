@@ -177,6 +177,19 @@ boot on both, but **only the eMMC route has been tested on hardware**:
   internal `cache` partition carrying a boot filesystem the internal one may win; clear it (or use a
   unit with nothing bootable inside) when testing the card.
 
+### "Needs manual repair (fsck)" at boot
+
+The initramfs runs `e2fsck -p` on the boot and root filesystems before mounting them, and when that
+cannot repair everything it shows a repair notice; **Volume Up boots anyway**. It means the filesystem
+lost writes at an unclean power-off (the hard reset after a freeze, a flat battery). The device package
+shrinks that window (the eMMC cache-off services, `commit=1` on the root filesystem and a faster
+writeback sysctl, `60-x6525-writeback.conf`), but it cannot remove it. To repair after booting with
+Volume Up, over SSH: find the partition (`lsblk -f`: `pmOS_root` is `userdata`, `pmOS_boot` is `cache`),
+then `sudo mount -o remount,ro /` and `sudo e2fsck -fy /dev/<root partition>` (the boot one can be
+unmounted first with `sudo umount /boot`), then reboot. If it comes back every boot, the cache is not
+really off: check `systemctl is-active x6525-emmc-cacheoff.service` and `sudo mmc extcsd read
+/dev/mmcblk0 | grep -i cache`.
+
 ## 1. U-Boot starts
 
 Expect: after the bootloader hands over, the screen shows U-Boot's text console (white on black) and
