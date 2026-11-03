@@ -393,3 +393,43 @@ honestly yet. `tools/dump-stock-codec.sh` now also copies every library that ref
 `sprd_jpg`/`/dev/sprd_jpg` (listed in `jpeg-libs.txt`). Next step when a stock dump is available:
 disassemble it like the AVC library, then write a V4L2 stateless JPEG decoder (`V4L2_PIX_FMT_JPEG_RAW`)
 in `sprd-vsp.ko`, reusing the m2m/request plumbing of `vsp-dec.c`.
+
+## JPEG codec: register map from `libjpeg_hw_sprd.so` (stock dump of 2026-11-03)
+
+`libjpeg_hw_sprd.so` (32-bit Thumb-2, also in `/vendor/lib64`) drives the codec from userspace through
+`jpg_write_register(ctx, off, val)` / `jpg_read_register`, which are plain MMIO accesses relative to the
+mmap of `/dev/sprd_jpg` (the 0x6230xxxx constants in the code are offsets plus a wrap trick; the real
+offset is `value - 0x62300000`). Every write is read back and compared (the library logs a mismatch), so
+the registers are plain RW. `tools/re/jpeg-regscan.py` recovers offsets from the disassembly
+(`llvm-objdump --triple=thumbv7-linux-gnueabi`). The hardware decodes **baseline only**
+("Sorry, we can not support the Progressive image!": progressive goes to a software path), 4:4:4, 4:2:2
+(both orientations) and 4:2:0 (`ctx->0x2e` = format), with an optional down-scale and slice output.
+
+Decode set-up, `JpegDec_HwTopRegCfg` (ctx fields are the library's own struct; W = value written):
+
+| Reg | Value |
+|-----|-------|
+| `0x154` | read, then `0x158` = that value `\| 0xff0000 \| 5` (interrupt enable), then `0x154` = 0 |
+| `0x0c` | `width \| ((width + 15) >> 4) << 20` |
+| `0x10` | `(height_mcu_delta/2) << 26 \| format << 29 \| (field44 & 0x1fff) << 13 \| (field42 & 0x1fff)` |
+| `0x14` | luma stride: width rounded up to 16 (4:4:4 variant: `(width + 7) & 0x1fff8`), then `& 0xfff8` |
+| `0x04` | mode word: `0x10140000 + 0x200 [+0x100] + ...`, flags by decode mode (`ctx 0x130..0x138`) |
+| `0x1c`, `0x20`, `0x24` | three buffer addresses from ctx `0xc4`, `0xc8`, `0xcc` (IOVA; probably bitstream/Y/UV) |
+| `0x28` | cleared, then written from ctx `0x50` |
+| `0x30` | `0x960711` (constant) |
+| `0x18` | ctx `0x54 - 0x21f` |
+| `0x34` | `1` |
+
+Start, `START_HW_DECODE`: `0x38 = ctx[0x14]`, `0x44 = ctx[0x00]`, `0x3c = ctx[0x0c]`, `0x40 = ctx[0x10]`
+(four more buffer/length words), then `0x04` is rewritten with the per-format mode word
+(`0x10140000 + ((ctx 0x4c & 3) << 10) + 0x200 ...`, `0x2000`/`0x1000` bits from `ctx 0x130..0x138`).
+Status: `0x15c` is polled by `JPEGDEC_Poll_DBK_BSM_FOR_SLICE`, `0x168` by `poll_ahb_idle` (AXI master
+status), `0x300` read in `JPEGDEC_Slice_Start`. Huffman and quantisation tables go in through
+`JPEGFW_configure_vld_reg_jpegDec` / `JPEGFW_configure_validReg` (registers `0x48`, `0x4c`, `0x54`,
+`0x94` and an indexed window), built from `g_huffTab`.
+
+Still unknown before a driver can be written: the exact `0x04` mode-word bits, what the four `0x38..0x44`
+words are (bitstream address/size vs output planes), the table upload format, and the interrupt bits in
+`0x2c` that mean "frame done" versus "error". Next: read `JPEGFW_configure_vld_reg_jpegDec`,
+`JPEG_HWDecStart` and `JPEG_HWWaitingEnd` (they go through other PLT stubs, which the scanner does not
+follow yet), then implement a `V4L2_PIX_FMT_JPEG_RAW` stateless decoder like `vsp-dec.c`.
