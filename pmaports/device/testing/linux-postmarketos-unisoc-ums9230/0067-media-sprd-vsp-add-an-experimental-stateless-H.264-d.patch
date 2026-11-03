@@ -15,11 +15,11 @@ are not supported. P and B slices fail the request.
 ---
  drivers/media/platform/sprd/vsp/Kconfig    |  13 +-
  drivers/media/platform/sprd/vsp/Makefile   |   2 +-
- drivers/media/platform/sprd/vsp/vsp-dec.c  | 836 +++++++++++++++++++++
+ drivers/media/platform/sprd/vsp/vsp-dec.c  | 851 +++++++++++++++++++++++++
  drivers/media/platform/sprd/vsp/vsp-regs.h |  89 +++
  drivers/media/platform/sprd/vsp/vsp.c      |  34 +-
  drivers/media/platform/sprd/vsp/vsp.h      |  59 ++
- 6 files changed, 1005 insertions(+), 28 deletions(-)
+ 6 files changed, 1020 insertions(+), 28 deletions(-)
  create mode 100644 drivers/media/platform/sprd/vsp/vsp-dec.c
  create mode 100644 drivers/media/platform/sprd/vsp/vsp-regs.h
  create mode 100644 drivers/media/platform/sprd/vsp/vsp.h
@@ -66,10 +66,10 @@ index 9260ac8ce..aea7860be 100644
  obj-$(CONFIG_VIDEO_SPRD_VSP) += sprd-vsp.o
 diff --git a/drivers/media/platform/sprd/vsp/vsp-dec.c b/drivers/media/platform/sprd/vsp/vsp-dec.c
 new file mode 100644
-index 000000000..a3bd9d000
+index 000000000..37bf75527
 --- /dev/null
 +++ b/drivers/media/platform/sprd/vsp/vsp-dec.c
-@@ -0,0 +1,836 @@
+@@ -0,0 +1,851 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Unisoc UMS9230 video codec (VSP): stateless V4L2 H.264 decoder, EXPERIMENTAL.
@@ -646,7 +646,8 @@ index 000000000..a3bd9d000
 +	return 0;
 +}
 +
-+static void sprd_vsp_finish(struct sprd_vsp *vsp, enum vb2_buffer_state state)
++/* take ownership of the running job; whoever gets it (IRQ or watchdog) finishes it */
++static struct sprd_vsp_ctx *sprd_vsp_claim(struct sprd_vsp *vsp)
 +{
 +	struct sprd_vsp_ctx *ctx;
 +	unsigned long flags;
@@ -655,11 +656,18 @@ index 000000000..a3bd9d000
 +	ctx = vsp->cur_ctx;
 +	vsp->cur_ctx = NULL;
 +	spin_unlock_irqrestore(&vsp->job_lock, flags);
-+	if (!ctx)
-+		return;
++	return ctx;
++}
 +
++static void sprd_vsp_finish(struct sprd_vsp *vsp, struct sprd_vsp_ctx *ctx,
++			    enum vb2_buffer_state state)
++{
 +	cancel_delayed_work(&vsp->watchdog);
 +	vsp_w(vsp, VSP_INT_CTRL, 0);
++
++	if (state == VB2_BUF_STATE_DONE)
++		vb2_set_plane_payload(&ctx->dst->vb2_buf, 0,
++				      ctx->dst_fmt.plane_fmt[0].sizeimage);
 +
 +	v4l2_m2m_buf_done_and_job_finish(vsp->m2m_dev, ctx->fh.m2m_ctx, state);
 +	pm_runtime_put(vsp->dev);
@@ -668,15 +676,17 @@ index 000000000..a3bd9d000
 +static irqreturn_t sprd_vsp_irq(int irq, void *data)
 +{
 +	struct sprd_vsp *vsp = data;
++	struct sprd_vsp_ctx *ctx;
 +	u32 status;
 +
-+	if (!vsp->cur_ctx)
++	ctx = sprd_vsp_claim(vsp);
++	if (!ctx)
 +		return IRQ_NONE;
 +
 +	status = vsp_r(vsp, VSP_INT_STATUS);
 +	dev_dbg(vsp->dev, "decode interrupt, status %#x\n", status);
 +	/* which bits mean "error" is not known yet: any interrupt completes the job */
-+	sprd_vsp_finish(vsp, VB2_BUF_STATE_DONE);
++	sprd_vsp_finish(vsp, ctx, VB2_BUF_STATE_DONE);
 +
 +	return IRQ_HANDLED;
 +}
@@ -684,11 +694,16 @@ index 000000000..a3bd9d000
 +static void sprd_vsp_watchdog(struct work_struct *work)
 +{
 +	struct sprd_vsp *vsp = container_of(work, struct sprd_vsp, watchdog.work);
++	struct sprd_vsp_ctx *ctx = sprd_vsp_claim(vsp);
++
++	/* the interrupt got there first: nothing to do (and do not reset a later job) */
++	if (!ctx)
++		return;
 +
 +	dev_err(vsp->dev, "decode timeout (status %#x, bsm busy %#x)\n",
 +		vsp_r(vsp, VSP_INT_STATUS), vsp_r(vsp, VSP_BSM_BUSY));
 +	vsp_w(vsp, VSP_RESET, 0xd0);
-+	sprd_vsp_finish(vsp, VB2_BUF_STATE_ERROR);
++	sprd_vsp_finish(vsp, ctx, VB2_BUF_STATE_ERROR);
 +}
 +
 +static void sprd_vsp_device_run(void *priv)

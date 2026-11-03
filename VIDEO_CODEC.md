@@ -359,3 +359,11 @@ or ffmpeg's v4l2-request hwaccel): `dmesg | grep -i vsp`, `ls /dev/video* /dev/m
 `v4l2-ctl -d /dev/videoN --all`, then one decode with
 `echo 'file drivers/media/platform/sprd/vsp/vsp-dec.c +p' | sudo tee /sys/kernel/debug/dynamic_debug/control`.
 Expect failures first (timeouts or IOMMU faults); each one narrows down a guessed register.
+
+### Review pass (decoder)
+
+Fixed after re-reading `vsp-dec.c`: the IRQ handler and the watchdog could both finish
+the same job, and a late watchdog could reset the codec under the next job (the running
+job is now claimed under `job_lock` by whoever gets there first); the capture buffer's
+payload was never set, so userspace saw `bytesused = 0`. Still open: any interrupt counts
+as success (error bits unknown), side-data sizes are guesses, P/B slices unsupported.
