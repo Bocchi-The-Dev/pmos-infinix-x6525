@@ -129,24 +129,6 @@
 	 * is not reproduced yet.
 	 */
 
-	/*
-	 * Flashlight. The live tree has the flash drivers (sprd,flash-ocp8137 on
-	 * i2c5 0x63, flash-aw36515 on 0x64). The stock device tree confirms the
-	 * torch enable pin is ap_gpio 137 (0x89 in flash-torch-en-gpios).
-	 * No mainline driver exists for the I2C parts, but the enable alone lights
-	 * the LED at default current, so it is exposed as a plain GPIO LED:
-	 * Phosh's flashlight toggle and the shake service drive white:flash.
-	 */
-	leds {
-		compatible = "gpio-leds";
-
-		led-torch {
-			color = <LED_COLOR_ID_WHITE>;
-			function = LED_FUNCTION_FLASH;
-			gpios = <&ap_gpio 137 GPIO_ACTIVE_HIGH>;
-		};
-	};
-
 	gpio-keys {
 		compatible = "gpio-keys";
 
@@ -418,6 +400,63 @@
 		reset-gpios = <&ap_gpio 168 GPIO_ACTIVE_LOW>;
 		interrupt-parent = <&ap_gpio>;
 		interrupts = <169 IRQ_TYPE_EDGE_FALLING>;
+	};
+};
+
+/*
+ * Flashlight: two dual-LED flash chips on i2c5, an AW36515 at 0x63 and an
+ * OCP81375 at 0x64 (stock i2c@20210000: flash-ic@63 / flash_ic_ocp81375@64).
+ * The vendor driver drives them over I2C alone, and the stock device tree's
+ * torch-enable pin (ap_gpio 137) is only used by a different vendor module that
+ * is not bound on this phone, so no GPIO is described. Which LED channel is the
+ * rear light and which the front one is not known yet: the channels are named
+ * neutrally, the first one white:flash (what Phosh and the shake service drive),
+ * and have to be tried on the phone (tools/check-torch.sh).
+ */
+&i2c5 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	flash@64 {
+		compatible = "sprd,flash-ocp81375";
+		reg = <0x64>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		led@0 {
+			reg = <0>;
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_FLASH;
+		};
+
+		led@1 {
+			reg = <1>;
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_FLASH;
+			function-enumerator = <1>;
+		};
+	};
+
+	flash@63 {
+		compatible = "awinic,aw36515";
+		reg = <0x63>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		led@0 {
+			reg = <0>;
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_FLASH;
+			function-enumerator = <2>;
+		};
+
+		led@1 {
+			reg = <1>;
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_FLASH;
+			function-enumerator = <3>;
+		};
 	};
 };
 

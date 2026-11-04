@@ -9,7 +9,7 @@ maintainer="Affe Null <affenull2345@gmail.com>"
 _flavor="postmarketos-unisoc-ums9230"
 pkgname=linux-$_flavor
 pkgver=7.2.0_rc6_git20260807
-pkgrel=62
+pkgrel=63
 pkgdesc="Linux kernel with patches for Unisoc UMS9230 devices"
 arch="aarch64"
 _carch="arm64"
@@ -112,6 +112,8 @@ source="
 	0069-arm64-dts-sprd-infinix-x6525-enable-the-UFS-controll.patch
 	0070-media-sprd-vsp-add-a-debugfs-register-lab-for-the-JP.patch
 	0071-arm64-dts-sprd-infinix-x6525-leave-the-UFS-controlle.patch
+	0072-leds-add-a-torch-driver-for-the-AW36515-and-OCP81375.patch
+	0073-arm64-dts-sprd-infinix-x6525-describe-the-flash-chip.patch
 "
 builddir="$srcdir/linux"
 
@@ -142,7 +144,7 @@ package() {
 
 sha512sums="
 3fa24b0720994802fee53b0b343de722a3a4a9db547dff597411e7eb5cb15d63ec62120705b279edc559a78f6c67e1d1ec52adad4d72ffb4a611767e8ccb86f2  linux-v7.2-rc6-ums9230-0.tar.gz
-11fa52dc5abae00b0b33ae59ed1cae0fef6b14fa4d1106a2ee263866717da3ca4de512ae5eb09797f9fb3236c492b1b8de863a8aacb9a53fb99695cdfc0914b1  config-postmarketos-unisoc-ums9230.aarch64
+60472ad865236a10e76231930275cae96f23bb4a08b21d3e23c5298de8d2e56589893d5f771f953d1a29a609383fdc8c58ecff400d950ec8233291a1622d0dea  config-postmarketos-unisoc-ums9230.aarch64
 7eaff147db4d2dbaadb287ce72f11d4bbfb0abb70af36aff3001331777627a40e573d680d31079946be0234d3af0be9e7db8fabf4d87e5ce4a03ae4d106b23f3  0001-dt-bindings-vendor-prefixes-add-Infinix-Mobility.patch
 3f035560c3dcf79104266c382fe55bdf0a6ae434eb27f5e44b19430573fc6bff1f99248c6d48d04d6c0834722ddf690efed6f8c6791fd8e704f72708dd86f574  0002-dt-bindings-arm-sprd-add-Infinix-X6525-board.patch
 6cffa0dd1408d8652136fa6d77c63304b54c90e96a10cbf314a40e01bdc41e063fd16852d054f9bda1346a6402c6093f3232a751e40827a2e947f8007e2127e0  0003-arm64-dts-sprd-add-device-tree-for-Infinix-X6525.patch
@@ -213,4 +215,6 @@ de72ad36c5c1c1bff26b20148135ec5f7ee2258a6890377bd113bedfd286c1958c0f0f89c4571b62
 625c8b739b97b3eee16c2f3e8790630110fb1bfeb99f93140be8e50bcc2849c6a91008e7296caecccabb241e2a0428068c505576825872636f76fd814f37e2d1  0069-arm64-dts-sprd-infinix-x6525-enable-the-UFS-controll.patch
 035bb0444931aa2a8dd25bf0882400c31c132ff264a5cdbcfb5c215e88ddc088d257c67118123f3037b2e24af9d595e4a52380f6c4ecd7914e7acff8fa7bfb63  0070-media-sprd-vsp-add-a-debugfs-register-lab-for-the-JP.patch
 c0aaacf7da40bc66890bcd12b5da78a10c012d73d3c27285fa4e40eddff0fc1cda1939c03a51f14773766e3aec5c37db08d2fa283ca597d79c34c9e8eb79fd07  0071-arm64-dts-sprd-infinix-x6525-leave-the-UFS-controlle.patch
+1b3f81e41768324ed4960689462f7b8ed38f634438dd1a3ba1ec0f3c2c7a85c7963021da0770fb28c2db296d4e4cbf40d93cb4d8cba793cb6ef289b706c93260  0072-leds-add-a-torch-driver-for-the-AW36515-and-OCP81375.patch
+d275ddb309a3a4dfabc9f5a502defd3d87ece5e5e36f8ce84a02a5ef088f2e42b331524cc06f2a1307c329aa1878e22bce4c358e87b69cd1a5f53c7e8dbf7c12  0073-arm64-dts-sprd-infinix-x6525-describe-the-flash-chip.patch
 "

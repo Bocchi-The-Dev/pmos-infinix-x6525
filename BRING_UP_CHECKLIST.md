@@ -1058,7 +1058,7 @@ In the vendor kernel (`receiver_r3p1/csi_driver.h`), `sprd,phyid = <0>` is `PHY_
 which mainline renumbered to `CAMSYS_CSI_RO_M_S = 4`). Both cameras use 4 MIPI data lanes.
 
 There is also a flash controller: `sprd,flash-ocp8137` on i2c5 at 0x63 (and `flash-aw36515` at 0x64
-in the live tree), with torch enable on ap_gpio 137 (confirmed from the stock device tree; exposed as the `white:flash` LED), other flash pins unconfirmed, and sync on 121. No mainline
+in the live tree), with a torch-enable pin on ap_gpio 137 that the stock flash driver does not use for these chips (they are driven over I2C by `leds-sprd-flash`, patches 0072-0073; `tools/check-torch.sh`), other flash pins unconfirmed, and sync on 121. No mainline
 driver yet.
 
 The stock OTA's `/odm/etc/sensor_config.xml` lists what the HAL expects per camera slot:

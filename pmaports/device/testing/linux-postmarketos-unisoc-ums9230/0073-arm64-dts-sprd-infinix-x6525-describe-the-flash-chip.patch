@@ -1,0 +1,109 @@
+From 86113349c51d4cf207fc6ad36a18856e8366b9ac Mon Sep 17 00:00:00 2001
+From: ci <a@b>
+Date: Wed, 4 Nov 2026 11:49:32 +0800
+Subject: [PATCH 73/73] arm64: dts: sprd: infinix-x6525: describe the flash
+ chips on i2c5
+
+Replace the GPIO 'torch' LED, which cannot light these chips (the vendor driver
+never uses that pin for them), with the two I2C flash chips and their LED
+channels.
+---
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 75 ++++++++++++++-----
+ 1 file changed, 57 insertions(+), 18 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+index d8d9afdd0..8973de503 100644
+--- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
++++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
+@@ -129,24 +129,6 @@ linux,cma {
+ 	 * is not reproduced yet.
+ 	 */
+ 
+-	/*
+-	 * Flashlight. The live tree has the flash drivers (sprd,flash-ocp8137 on
+-	 * i2c5 0x63, flash-aw36515 on 0x64). The stock device tree confirms the
+-	 * torch enable pin is ap_gpio 137 (0x89 in flash-torch-en-gpios).
+-	 * No mainline driver exists for the I2C parts, but the enable alone lights
+-	 * the LED at default current, so it is exposed as a plain GPIO LED:
+-	 * Phosh's flashlight toggle and the shake service drive white:flash.
+-	 */
+-	leds {
+-		compatible = "gpio-leds";
+-
+-		led-torch {
+-			color = <LED_COLOR_ID_WHITE>;
+-			function = LED_FUNCTION_FLASH;
+-			gpios = <&ap_gpio 137 GPIO_ACTIVE_HIGH>;
+-		};
+-	};
+-
+ 	gpio-keys {
+ 		compatible = "gpio-keys";
+ 
+@@ -421,6 +403,63 @@ proximity@29 {
+ 	};
+ };
+ 
++/*
++ * Flashlight: two dual-LED flash chips on i2c5, an AW36515 at 0x63 and an
++ * OCP81375 at 0x64 (stock i2c@20210000: flash-ic@63 / flash_ic_ocp81375@64).
++ * The vendor driver drives them over I2C alone, and the stock device tree's
++ * torch-enable pin (ap_gpio 137) is only used by a different vendor module that
++ * is not bound on this phone, so no GPIO is described. Which LED channel is the
++ * rear light and which the front one is not known yet: the channels are named
++ * neutrally, the first one white:flash (what Phosh and the shake service drive),
++ * and have to be tried on the phone (tools/check-torch.sh).
++ */
++&i2c5 {
++	status = "okay";
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	flash@64 {
++		compatible = "sprd,flash-ocp81375";
++		reg = <0x64>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		led@0 {
++			reg = <0>;
++			color = <LED_COLOR_ID_WHITE>;
++			function = LED_FUNCTION_FLASH;
++		};
++
++		led@1 {
++			reg = <1>;
++			color = <LED_COLOR_ID_WHITE>;
++			function = LED_FUNCTION_FLASH;
++			function-enumerator = <1>;
++		};
++	};
++
++	flash@63 {
++		compatible = "awinic,aw36515";
++		reg = <0x63>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		led@0 {
++			reg = <0>;
++			color = <LED_COLOR_ID_WHITE>;
++			function = LED_FUNCTION_FLASH;
++			function-enumerator = <2>;
++		};
++
++		led@1 {
++			reg = <1>;
++			color = <LED_COLOR_ID_WHITE>;
++			function = LED_FUNCTION_FLASH;
++			function-enumerator = <3>;
++		};
++	};
++};
++
+ &i2c3 {
+ 	status = "okay";
+ 	#address-cells = <1>;
+-- 
+2.43.0
+
