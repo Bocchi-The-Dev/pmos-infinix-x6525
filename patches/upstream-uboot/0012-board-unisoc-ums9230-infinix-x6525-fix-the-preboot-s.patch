@@ -1,0 +1,33 @@
+From 3e616d0f1ab4b0656c87fdf7264c9807307c28ce Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 6 Nov 2026 18:44:18 +0800
+Subject: [PATCH] board: unisoc: ums9230: infinix-x6525: fix the preboot
+ "syntax error"
+
+The nested `fi` that closes the scsi block had no terminating `;`. The env
+file joins its lines with spaces, so the script ended in "fi fi", which hush
+rejects ("syntax error") at the start of every boot. Found by running the
+joined script through the sandbox build; with `fi; fi` it parses.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BfvoN2QMhDVD6rSACbEu3p
+---
+ board/unisoc/ums9230/infinix-x6525.env | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/board/unisoc/ums9230/infinix-x6525.env b/board/unisoc/ums9230/infinix-x6525.env
+index 8ec5193b..3d879c0c 100644
+--- a/board/unisoc/ums9230/infinix-x6525.env
++++ b/board/unisoc/ums9230/infinix-x6525.env
+@@ -20,7 +20,7 @@ preboot=
+   if load scsi 0#prodnv 0x9c000000 /wifimac.txt 0x11; then
+    mw.b 0x9c000011 0;
+    setexpr.s wifiaddr *0x9c000000;
+-  fi
++  fi;
+  fi
+ bootcmd=pmicwdt stop; sleep 5; pstore display console; pstore display dump; sleep 15; bootflow scan -lb mmc; bootflow scan -lb scsi; echo === no bootflow: the cache partition ===; part number mmc 0 cache cachenum; echo cache is partition ${cachenum}; ls mmc 0:${cachenum} /; ls mmc 0:${cachenum} /extlinux; echo === no bootflow on scsi: the cache partition ===; part number scsi 0 cache cachenum; echo cache is partition ${cachenum}; ls scsi 0:${cachenum} /; ls scsi 0:${cachenum} /extlinux
+ fdt_addr_r=0x9df00000
+-- 
+2.43.0
+

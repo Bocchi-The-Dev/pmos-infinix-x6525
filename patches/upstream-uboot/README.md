@@ -53,3 +53,10 @@ units), and `ft_board_setup` then marks `sprd,ums9230-ufs` okay or disabled. An 
 on one, never touches the controller. Reason: a microSD image synced from this tree hung right after U-Boot
 with a soft lockup (`rcu_exp_gp_kthr`) on an eMMC phone; probing a controller nothing is attached to was the
 only new always-on hardware access.
+
+## Preboot "syntax error" (patch 0012)
+
+The env file joins its continuation lines with spaces, and the inner `fi` of the
+scsi block had no `;`, so the script ended in `fi fi`, which hush rejects with
+"syntax error" at the start of every boot (present since patch 0009). It is now
+`fi; fi`. Checked by running the joined script through a sandbox U-Boot build.
