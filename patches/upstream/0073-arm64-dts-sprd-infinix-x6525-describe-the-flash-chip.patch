@@ -1,18 +1,18 @@
-From 86113349c51d4cf207fc6ad36a18856e8366b9ac Mon Sep 17 00:00:00 2001
+From 7c707e17f6eb894ce1b2a7a068c5906e86e629c1 Mon Sep 17 00:00:00 2001
 From: ci <a@b>
 Date: Wed, 4 Nov 2026 11:49:32 +0800
-Subject: [PATCH 73/73] arm64: dts: sprd: infinix-x6525: describe the flash
- chips on i2c5
+Subject: [PATCH 73/73] arm64: dts: sprd: infinix-x6525: describe the flash chips on
+ i2c5
 
 Replace the GPIO 'torch' LED, which cannot light these chips (the vendor driver
 never uses that pin for them), with the two I2C flash chips and their LED
 channels.
 ---
- .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 75 ++++++++++++++-----
- 1 file changed, 57 insertions(+), 18 deletions(-)
+ .../boot/dts/sprd/ums9230-infinix-x6525.dts   | 80 ++++++++++++++-----
+ 1 file changed, 62 insertions(+), 18 deletions(-)
 
 diff --git a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
-index d8d9afdd0..8973de503 100644
+index ffb851487..e7ed79001 100644
 --- a/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 +++ b/arch/arm64/boot/dts/sprd/ums9230-infinix-x6525.dts
 @@ -129,24 +129,6 @@ linux,cma {
@@ -40,7 +40,7 @@ index d8d9afdd0..8973de503 100644
  	gpio-keys {
  		compatible = "gpio-keys";
  
-@@ -421,6 +403,63 @@ proximity@29 {
+@@ -417,6 +399,68 @@ proximity@29 {
  	};
  };
  
@@ -65,26 +65,8 @@ index d8d9afdd0..8973de503 100644
 +		#address-cells = <1>;
 +		#size-cells = <0>;
 +
-+		led@0 {
-+			reg = <0>;
-+			color = <LED_COLOR_ID_WHITE>;
-+			function = LED_FUNCTION_FLASH;
-+		};
-+
-+		led@1 {
-+			reg = <1>;
-+			color = <LED_COLOR_ID_WHITE>;
-+			function = LED_FUNCTION_FLASH;
-+			function-enumerator = <1>;
-+		};
-+	};
-+
-+	flash@63 {
-+		compatible = "awinic,aw36515";
-+		reg = <0x63>;
-+		#address-cells = <1>;
-+		#size-cells = <0>;
-+
++		/* Neither channel lit anything on the test phone; kept described,
++		 * numbered after the two that do so the plain name is the rear. */
 +		led@0 {
 +			reg = <0>;
 +			color = <LED_COLOR_ID_WHITE>;
@@ -97,6 +79,29 @@ index d8d9afdd0..8973de503 100644
 +			color = <LED_COLOR_ID_WHITE>;
 +			function = LED_FUNCTION_FLASH;
 +			function-enumerator = <3>;
++		};
++	};
++
++	flash@63 {
++		compatible = "awinic,aw36515";
++		reg = <0x63>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		/* Front light: white:flash-1 (max_brightness 48). */
++		led@0 {
++			reg = <0>;
++			color = <LED_COLOR_ID_WHITE>;
++			function = LED_FUNCTION_FLASH;
++			function-enumerator = <1>;
++		};
++
++		/* Rear light, the plain white:flash (max_brightness 48): the name
++		 * an app that takes "the" flash will pick. */
++		led@1 {
++			reg = <1>;
++			color = <LED_COLOR_ID_WHITE>;
++			function = LED_FUNCTION_FLASH;
 +		};
 +	};
 +};

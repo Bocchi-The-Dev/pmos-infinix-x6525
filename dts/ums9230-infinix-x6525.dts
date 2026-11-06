@@ -210,19 +210,15 @@
 	 * device's own (sdio@201a0000); the vendor's sd-detect-pol-syscon and
 	 * sd-hotplug-* properties are its own and are not in the binding.
 	 */
-	/*
-	 * Card detect is polled (broken-cd) rather than read from eic_sync 35.
-	 * The slot is also a boot path, U-Boot ignores card-detect altogether,
-	 * and that line's polarity (low = card in) was only read off an empty
-	 * slot. Restore cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW> once a card has
-	 * been seen to flip it. From the microSD fix in Bocchi-The-Dev's fork.
-	 */
-	broken-cd;
+	cd-gpios = <&eic_sync 35 GPIO_ACTIVE_LOW>;	/* eic_sync confirmed: the running system */
+							/* has gpio-355 "cd" on the eic-sync chip; the */
+							/* reeder's eic_async is not this board. It read */
+							/* high with the slot empty, so low = card in. */
 	vmmc-supply = <&vddsdcore>;
 	vqmmc-supply = <&vddsdio>;
 	bus-width = <4>;
-	/* No UHS modes for now: 3.3 V high-speed only, so a failed 1.8 V switch
-	 * of vddsdio cannot be what hides the card. */
+	sd-uhs-sdr104;
+	sd-uhs-sdr50;
 	no-sdio;
 	no-mmc;
 
@@ -424,26 +420,8 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		led@0 {
-			reg = <0>;
-			color = <LED_COLOR_ID_WHITE>;
-			function = LED_FUNCTION_FLASH;
-		};
-
-		led@1 {
-			reg = <1>;
-			color = <LED_COLOR_ID_WHITE>;
-			function = LED_FUNCTION_FLASH;
-			function-enumerator = <1>;
-		};
-	};
-
-	flash@63 {
-		compatible = "awinic,aw36515";
-		reg = <0x63>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
+		/* Neither channel lit anything on the test phone; kept described,
+		 * numbered after the two that do so the plain name is the rear. */
 		led@0 {
 			reg = <0>;
 			color = <LED_COLOR_ID_WHITE>;
@@ -456,6 +434,29 @@
 			color = <LED_COLOR_ID_WHITE>;
 			function = LED_FUNCTION_FLASH;
 			function-enumerator = <3>;
+		};
+	};
+
+	flash@63 {
+		compatible = "awinic,aw36515";
+		reg = <0x63>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* Front light: white:flash-1 (max_brightness 48). */
+		led@0 {
+			reg = <0>;
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_FLASH;
+			function-enumerator = <1>;
+		};
+
+		/* Rear light, the plain white:flash (max_brightness 48): the name
+		 * an app that takes "the" flash will pick. */
+		led@1 {
+			reg = <1>;
+			color = <LED_COLOR_ID_WHITE>;
+			function = LED_FUNCTION_FLASH;
 		};
 	};
 };

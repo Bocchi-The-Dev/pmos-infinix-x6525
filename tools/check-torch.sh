@@ -3,8 +3,10 @@
 #
 # The X6525 has two dual-LED flash chips on i2c5 (AW36515 at 0x63, OCP81375 at
 # 0x64), four channels in all, exposed by leds-sprd-flash as
-# /sys/class/leds/white:flash, white:flash-1, -2, -3. Which one is the rear and
-# which the front light is not known; this lights each for 3 s so you can tell.
+# /sys/class/leds/white:flash, white:flash-1, -2, -3. Measured on the phone:
+# white:flash is the rear light and white:flash-1 the front one (both max
+# brightness 48, on the AW36515); -2 and -3 are the OCP81375 channels, which
+# have not been seen to light anything. This lights each for 3 s to confirm.
 # Run it from a shell on the phone: sh check-torch.sh
 S=$(command -v sudo >/dev/null 2>&1 && echo "sudo -n")
 echo "== drivers and chips"
