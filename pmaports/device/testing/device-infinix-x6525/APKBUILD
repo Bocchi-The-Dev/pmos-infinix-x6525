@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=71
+pkgrel=72
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -442,6 +442,32 @@ EOF
 	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/91-x6525-regdom.rules <<'EOF'
 ACTION=="add", SUBSYSTEM=="net", KERNEL=="wlan*", RUN+="/usr/bin/x6525-regdom"
 EOF
+	# Re-run it when the timezone changes (the first boot is on London until the
+	# user picks one), so the country follows without a reboot.
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/systemd/system/x6525-regdom.service <<'EOF'
+[Unit]
+Description=Set the Wi-Fi regulatory domain from the timezone
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/x6525-regdom
+EOF
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/systemd/system/x6525-regdom.path <<'EOF'
+[Unit]
+Description=Watch the timezone for the Wi-Fi regulatory domain
+
+[Path]
+PathChanged=/etc/localtime
+PathChanged=/etc/timezone
+PathChanged=/etc/x6525-regdom
+Unit=x6525-regdom.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	mkdir -p "$pkgdir"/etc/systemd/system/multi-user.target.wants
+	ln -s /usr/lib/systemd/system/x6525-regdom.path \
+		"$pkgdir"/etc/systemd/system/multi-user.target.wants/x6525-regdom.path
 
 	# Tell ModemManager to process the Unisoc modem's ports and to treat them as one
 	# modem. ID_MM_DEVICE_PROCESS (documented since 1.10) is what makes MM look at
