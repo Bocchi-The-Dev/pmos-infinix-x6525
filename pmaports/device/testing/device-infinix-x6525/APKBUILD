@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=70
+pkgrel=71
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -36,6 +36,7 @@ depends="
 	python3
 	soc-unisoc-ums9230
 	u-boot-infinix-x6525
+	tzdata
 	wireless-regdb
 	wpa_supplicant
 "
@@ -414,12 +415,32 @@ EOF
 
 	# Wi-Fi regulatory domain. cfg80211 starts in the world domain (00), which
 	# marks 2.4 GHz channels 12-13 and every 5 GHz channel "no IR" (listen only),
-	# so networks on them are not seen. Default to the Philippines, where this
-	# phone is sold; it is a config file, so edit the country code (or delete the
-	# file) for another country. A running system can use: iw reg set <CC>.
-	install -Dm644 /dev/stdin "$pkgdir"/etc/modprobe.d/x6525-cfg80211-regdom.conf <<'EOF'
-# ISO 3166 country code for the Wi-Fi regulatory domain.
-options cfg80211 ieee80211_regdom=PH
+	# so networks on them are not seen. The country is not hardcoded: when the
+	# Wi-Fi interface appears, x6525-regdom sets it from /etc/x6525-regdom (one
+	# ISO country code, wins if present) or else from the timezone, and leaves
+	# the world domain alone when neither gives one.
+	install -Dm755 /dev/stdin "$pkgdir"/usr/bin/x6525-regdom <<'EOF'
+#!/bin/sh
+# Set the Wi-Fi regulatory domain: /etc/x6525-regdom, else the timezone's country.
+cc=""
+[ -r /etc/x6525-regdom ] && cc=$(tr -d ' \t\r\n' < /etc/x6525-regdom)
+if [ -z "$cc" ]; then
+	tz=$(readlink -f /etc/localtime 2>/dev/null | sed -n 's|.*/zoneinfo/||p')
+	[ -z "$tz" ] && [ -r /etc/timezone ] && tz=$(tr -d ' \t\r\n' < /etc/timezone)
+	[ -n "$tz" ] || exit 0
+	for t in /usr/share/zoneinfo/zone.tab /usr/share/zoneinfo/zone1970.tab; do
+		[ -r "$t" ] || continue
+		cc=$(awk -F'\t' -v tz="$tz" '$1 !~ /^#/ && $3 == tz { split($1, a, ","); print a[1]; exit }' "$t")
+		[ -n "$cc" ] && break
+	done
+fi
+case "$cc" in
+	[A-Za-z][A-Za-z]) exec iw reg set "$(echo "$cc" | tr a-z A-Z)" ;;
+esac
+exit 0
+EOF
+	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/91-x6525-regdom.rules <<'EOF'
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="wlan*", RUN+="/usr/bin/x6525-regdom"
 EOF
 
 	# Tell ModemManager to process the Unisoc modem's ports and to treat them as one
