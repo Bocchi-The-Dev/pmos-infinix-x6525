@@ -453,3 +453,24 @@ follow yet), then implement a `V4L2_PIX_FMT_JPEG_RAW` stateless decoder like `vs
 Plan: a debugfs test in `sprd-vsp.ko` that replays this exact sequence for a small baseline JPEG
 (default tables, 4:2:0) and logs `0x2c`, `0x15c`, `0x168` and the output, so the next boot of the phone
 turns these guesses into facts before a V4L2 driver is built on them.
+
+### JPEG: the table window, measured on the phone (corrects the table-upload notes above)
+
+The register lab (patch 0070) wrote all-ones to each of the 66 table registers and read back the
+writable-bit mask. `0x48` and `0x4c` are full 32-bit. Then four groups of 16 registers:
+
+| Registers | Writable bits, register k = 0..15 |
+|-----------|-----------------------------------|
+| `0x50..0x8c`, `0x90..0xcc` | the low k+1 bits (a 1-bit register, then 2, ... up to 16) |
+| `0xd0..0x10c`, `0x110..0x14c` | two (k+1)-bit fields, at bits 0.. and 8.. (the first register keeps only bit 8) |
+
+So the window is indexed by Huffman code length 1..16, which is a canonical decoder's max-code
+table, and the right source is the library's `jpeg_fw_vld_default_max_code` (264 bytes, vaddr 0x8208), not
+`jpeg_fw_vld_default_huffTab` (648 bytes at 0x8310) as written in the previous section: that
+table wrote 39 of 66 words that read back different (the first run on the phone). The 648-byte table is the
+symbol (value) table and goes somewhere else. Reading the max-code table: the first group is the
+standard DC luminance table's max codes (`0, 0, 6, e, 1e, 3e, 7e, fe, 1fe, ...`) and the second the DC
+chrominance table's (`0, 2, 6, e, ...`); the last two groups are the luminance and chrominance AC ones.
+`tools/re/jpeg-lab-tables.py` now emits the max-code table, and every word fits the measured masks.
+Still open: where the symbol table (`jpeg_fw_vld_default_huffTab`) is loaded (the DMA/second window
+the library copies it to) and what `0x48`/`0x4c` hold.
