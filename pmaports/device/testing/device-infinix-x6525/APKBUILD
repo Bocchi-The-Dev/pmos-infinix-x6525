@@ -3,7 +3,7 @@ maintainer="Seuj09 <jeus110310@gmail.com>"
 pkgname=device-infinix-x6525
 pkgdesc="Infinix X6525"
 pkgver=1
-pkgrel=69
+pkgrel=70
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -410,6 +410,16 @@ EOF
 	# Provide Android-compatible /dev/block/by-name symlinks
 	install -Dm644 /dev/stdin "$pkgdir"/usr/lib/udev/rules.d/65-x6525-by-name.rules <<'EOF'
 ENV{ID_PART_ENTRY_NAME}=="?*", SYMLINK+="block/by-name/$env{ID_PART_ENTRY_NAME}"
+EOF
+
+	# Wi-Fi regulatory domain. cfg80211 starts in the world domain (00), which
+	# marks 2.4 GHz channels 12-13 and every 5 GHz channel "no IR" (listen only),
+	# so networks on them are not seen. Default to the Philippines, where this
+	# phone is sold; it is a config file, so edit the country code (or delete the
+	# file) for another country. A running system can use: iw reg set <CC>.
+	install -Dm644 /dev/stdin "$pkgdir"/etc/modprobe.d/x6525-cfg80211-regdom.conf <<'EOF'
+# ISO 3166 country code for the Wi-Fi regulatory domain.
+options cfg80211 ieee80211_regdom=PH
 EOF
 
 	# Tell ModemManager to process the Unisoc modem's ports and to treat them as one
