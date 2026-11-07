@@ -510,3 +510,9 @@ ctx[0x50], 0x30 = 0x960711, 0x18 = ctx[0x54]-0x21f, 0x34 = 1.
 
 Completion (`JPEGDEC_Poll_DBK_BSM_FOR_SLICE`): poll reg 0x15c; bit0 set = done, bit2 set = error.
 Still unknown: what fills ctx[0x00..0x14] (probably Y/U/V and bitstream IOVAs) and the 0x2c bits.
+
+`JPEG_FWInitDecInput(ctx, in)` (0xd270) copies the HAL decode request into ctx: ctx[0x50] = in[4]+in[0x6c]
+(bitstream start), ctx[0xc4/0xc8/0xcc] = in[0x10/0x14/0x18] (three output plane addresses, written to
+regs 0x1c/0x20/0x24 by HwTopRegCfg), ctx[0x54] = in[0xc], ctx[0x58] = in[0x68] (stream size). ctx[0x2e]
+(format 0-6) selects the per-component sampling bytes at ctx[0x28..0x2d]. ctx[0x00..0x14] are not set
+here; they come from the driver ioctls (0x6d0e returns a value stored at ctx[0x2ec]).
