@@ -48,16 +48,21 @@ a("clear")
 a("r 0x48 2"); a("r 0x2000 4"); a("r 0x1000 4")
 a("r 0x04 1"); a("r 0x38 4"); a("r 0x2c 1"); a("r 0x15c 1"); a("r 0x168 1")
 a("buf 1 4096"); a("buf 2 4096"); a("buf 3 4096")
-# header registers (JpegDec_HwTopRegCfg), W=H=16 grey, format 0
+# JpegDec_HwTopRegCfg, in the stock order (W=H=16 grey, format 0)
+a("r 0x154 1")
+a("w 0x158 0xff0005")                                  # stock: (read 0x154) | 0xff0000 | 5
+a("w 0x154 0x0")
 a("w 0x0c 0x%x" % ((((W + 15) >> 4) << 20) + W))
 a("w 0x10 0x%x" % ((0 << 29) | (1 << 13) | 1))        # GUESS: MCU counts 1x1
 a("w 0x14 0x%x" % (((W + 15) & ~15) & 0xfff8))
-a("w 0x18 0x%x" % len(scan))                            # GUESS: stream length (stock: ctx[0x54]-0x21f)
+a("w 0x04 0x10140080")                                  # HwTopRegCfg mode word (flags 0)
+a("w 0x18 0x%x" % len(scan))                            # GUESS: stock ctx[0x54]-0x21f
 a("wb 0x1c 1"); a("wb 0x20 2"); a("wb 0x24 2")
-a("wb 0x28 0")
+a("w 0x28 0x0"); a("wb 0x28 0")
 a("w 0x30 0x960711"); a("w 0x34 0x1")
-a("r 0x04 1"); a("r 0x38 4")
-a("w 0x04 0x10140481")                                   # GUESS: mode, flags 0
+# START_HW_DECODE would now write 0x38/0x3c/0x40/0x44 (meaning unknown, left alone), then the mode word
+a("r 0x04 1"); a("r 0x18 1"); a("r 0x38 4")
+a("w 0x04 0x10140281")                                   # start (bit 0), plain case
 a("irq"); a("poll 0x15c 0x5 0x1")
 a("r 0x04 1"); a("r 0x2c 1"); a("r 0x15c 1"); a("r 0x168 1"); a("r 0x38 4")
 a("bufdump 1 0 256"); a("bufdump 2 0 64"); a("bufdump 3 0 64")

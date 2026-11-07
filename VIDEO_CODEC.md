@@ -528,3 +528,9 @@ here; they come from the driver ioctls (0x6d0e returns a value stored at ctx[0x2
 - After start: no interrupt within 1 s (0x2c = 0), 0x15c = 0x4, 0x168 = 0x1015 (busy bit set), outputs
   untouched. Hypothesis: the codec is waiting for stream data; 0x18 probably carries the stream length
   (stock writes ctx[0x54] - 0x21f).
+
+Probe v2 result: tables now read back correctly (0x48, 0x2000, 0x1000 windows). 0x38/0x3c/0x40 change
+after start (0x3c = 0x3b), 0x15c and 0x2c stay 0, outputs untouched, 0x168 = 0x1015 even when idle
+(so its bit 0 is not a busy flag). 0x18 does not take 0x72 when written out of order. v3 follows the
+stock order exactly: 0x158 = (0x154)|0xff0005 and 0x154 = 0 first, mode 0x10140080, 0x28 cleared then the
+stream address, final start word 0x10140281 (earlier guess 0x10140481 was wrong by 0x200).
