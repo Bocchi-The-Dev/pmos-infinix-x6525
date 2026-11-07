@@ -38,10 +38,12 @@ t = tables.append
 t("w 0x48 0x%x" % maxc[0]); t("w 0x4c 0x%x" % maxc[1])
 for i in range(64): t("w 0x%x 0x%x" % (0x50 + 4 * i, maxc[2 + i]))
 for i, v in enumerate(sym): t("w 0x%x 0x%x" % (0x2000 + 4 * i, v))
-# quantisation window: packing not known yet (GUESS: one table value per word)
-qt = list(Image.open(io.BytesIO(j)).quantization[0])
-for i, v in enumerate(qt): t("w 0x%x 0x%x" % (0x1000 + 4 * i, v))
-
+# quantisation window (JPEGFW_AdjustQuantTbl_Dec, hardware path): word j = Q[2j] | Q[2j+1] << 16 with
+# Q in zigzag order (the order the entropy decoder delivers coefficients); table n at 0x1000 + 0x80 * n
+dqt = j.find(b"\xff\xdb")
+q = list(j[dqt + 5:dqt + 5 + 64])
+for k in range(32): t("w 0x%x 0x%x" % (0x1000 + 4 * k, q[2 * k] | q[2 * k + 1] << 16))
+qt = q
 L = []
 a = L.append
 a("clear")
@@ -63,8 +65,12 @@ a("w 0x30 0x960711"); a("w 0x34 0x1")
 # START_HW_DECODE would now write 0x38/0x3c/0x40/0x44 (meaning unknown, left alone), then the mode word
 a("r 0x04 1"); a("r 0x18 1"); a("r 0x38 4")
 a("w 0x04 0x10140281")                                   # start (bit 0), plain case
-a("irq"); a("poll 0x15c 0x5 0x1")
+a("irq 200"); a("poll 0x15c 0x5 0x1 50")
 a("r 0x04 1"); a("r 0x2c 1"); a("r 0x15c 1"); a("r 0x168 1"); a("r 0x38 4")
+a("bufdump 1 0 256")
+# second start: does the engine continue with the next MCU row?
+a("w 0x04 0x10140281"); a("irq 200")
+a("r 0x04 1"); a("r 0x2c 1"); a("r 0x15c 1"); a("r 0x38 4")
 a("bufdump 1 0 256"); a("bufdump 2 0 64"); a("bufdump 3 0 64")
 lab = "\n".join(L) + "\n"
 open(out + "/probe.lab", "w").write(lab)

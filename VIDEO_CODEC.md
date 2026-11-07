@@ -541,3 +541,13 @@ after writing 0xff0005. Static findings used for v4: ctx[0x2e] format code: 0 = 
 1 = Y 4x1, 2 = 4:4:4, 3 = Y 2x1, 4 = grey, 5 = Y 1x2, 6 = Y 1x4 (table in JPEG_FWInitDecInput);
 ctx[0x42]/[0x44] = MCU columns/rows, aligned size = MCUs * MCU size; reg 0x10 = fmt<<29 | rows<<13 | cols;
 reg 0x14 = 0 for formats other than 0 and 3.
+
+## First pixels from the hardware JPEG decoder
+
+Probe v4 (16x16 grey, format code 4, reg 0x10 = 0x80004002, reg 0x14 = 0, start word 0x10140281) made the
+codec write 128 bytes (the first MCU row, 16 pixels x 8 lines, stride 16) into the Y buffer, with no
+interrupt (0x2c = 0) and 0x15c = 0; 0x38 reads 3 afterwards. The pixels are a recognisable gradient
+(row 0: 00 00 12 2b 45 5e 76 89 | 7c 6f 84 b9 d6 d6 cf ff, expected 00 10 20 30 .. f0) but wrongly scaled,
+because the quantisation window was loaded with one raster value per word. From the library the window
+holds two 16-bit values per word in zigzag order (word j = Q[2j] | Q[2j+1] << 16, one table per 0x80 bytes);
+probe v5 loads it that way and starts a second time to see whether the next MCU row follows.
