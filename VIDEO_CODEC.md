@@ -516,3 +516,15 @@ Still unknown: what fills ctx[0x00..0x14] (probably Y/U/V and bitstream IOVAs) a
 regs 0x1c/0x20/0x24 by HwTopRegCfg), ctx[0x54] = in[0xc], ctx[0x58] = in[0x68] (stream size). ctx[0x2e]
 (format 0-6) selects the per-component sampling bytes at ctx[0x28..0x2d]. ctx[0x00..0x14] are not set
 here; they come from the driver ioctls (0x6d0e returns a value stored at ctx[0x2ec]).
+
+## First decode probe on the phone (16x16 grey, guessed header)
+
+- `lab_cmd` accepts at most one page per write and aborts a write at the first bad line; a shell
+  heredoc/pipe splits long input mid-line, so feed one line per write (`probe.sh` now does).
+- `wb` prints the register *read-back*: 0x1c/0x20/0x24/0x28 keep the full 32-bit bus address (they are the
+  plane/stream address registers); 0x38/0x3c/0x40/0x44 do NOT (read back 0x0007feff, 0x0000047f,
+  0x00ff00ff, 0x000a9000), so they are not addresses.
+- Writing the mode word 0x10140481 reads back 0x10140480: bit 0 is a self-clearing start bit.
+- After start: no interrupt within 1 s (0x2c = 0), 0x15c = 0x4, 0x168 = 0x1015 (busy bit set), outputs
+  untouched. Hypothesis: the codec is waiting for stream data; 0x18 probably carries the stream length
+  (stock writes ctx[0x54] - 0x21f).
