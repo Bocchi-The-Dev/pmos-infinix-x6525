@@ -474,3 +474,17 @@ chrominance table's (`0, 2, 6, e, ...`); the last two groups are the luminance a
 `tools/re/jpeg-lab-tables.py` now emits the max-code table, and every word fits the measured masks.
 Still open: where the symbol table (`jpeg_fw_vld_default_huffTab`) is loaded (the DMA/second window
 the library copies it to) and what `0x48`/`0x4c` hold.
+
+### JPEG: both table windows verified on the phone, quantisation window found (2026-11-07)
+
+- Max-code window `0x48..0x14c`: the 66 words of `jpeg_fw_vld_default_max_code` read back exactly
+  (0 of 66 differ).
+- Symbol window `0x2000..0x2284`: the 162 words of `jpeg_fw_vld_default_huffTab` (`configure_huff_tab`
+  copies the table to `base + 0x2000 + 4i` and reads each word back) read back exactly (0 of 162 differ).
+- Quantisation window (`JPEGFW_AdjustQuantTbl_Dec`, hardware path): for each component table, 32 words
+  are written to consecutive registers from `0x1000` (luma `0x1000..0x107c`, chroma `0x1080..0x10fc`;
+  the register pointer is not reset between tables). Each word is `q[zigzag[2k]] | q[zigzag[2k+1]] << 16`
+  (two 8-bit entries). Next on the phone: the writable-bit mask of that window (`quant.lab`, all ones).
+- Still open before a decode attempt: the `0x04` mode word, the four start words `0x38..0x44`, the
+  interrupt bits in `0x2c`, and which of the three buffer registers (`0x1c`, `0x20`, `0x24`) is the
+  bitstream.
