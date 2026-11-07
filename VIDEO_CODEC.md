@@ -493,3 +493,20 @@ the library copies it to) and what `0x48`/`0x4c` hold.
   setting (`ctx 0xe0`) is 2, `+0x100` if that setting is above 0, `+0x80` (or `+0x4080` when `ctx 0x130` is 1),
   `+0x2000` when `ctx 0x134` is 1, `|0x1000` when `ctx 0x138` is 1. With all flags clear that is
   `0x10140280` (the unscaled, plain decode). `START_HW_DECODE` rewrites the word with the per-format value.
+
+## JPEG decode start sequence (static reading of libjpeg_hw_sprd.so)
+
+All register access goes through `jpg_write_register(ctx, reg, val)` / `jpg_read_register`, and every
+write is read back and compared (the stock code logs a mismatch).
+
+`START_HW_DECODE(ctx, addr)` (0xc3f4):
+- `addr` must be aligned (8 bytes for formats 1-4, 16 for 0/5, 32 otherwise), else it bails out.
+- 0x38 = ctx[0x14], 0x44 = ctx[0x00], 0x3c = ctx[0x0c], 0x40 = ctx[0x10] (address-like words).
+- 0x04 (mode) = 0x10140281 (+0x4000 if ctx[0x134]==1) + ((ctx[0x4c]&3)<<10 or +0x200) (+0x100 when
+  ctx[0xe0]>0) | 0x2000 if ctx[0x130]==1 | 0x1000 if ctx[0x138]==1.
+
+`JpegDec_HwTopRegCfg` (0xcbc4) tail: 0x1c/0x20/0x24 = ctx[0xc4]/[0xc8]/[0xcc], 0x28 cleared then
+ctx[0x50], 0x30 = 0x960711, 0x18 = ctx[0x54]-0x21f, 0x34 = 1.
+
+Completion (`JPEGDEC_Poll_DBK_BSM_FOR_SLICE`): poll reg 0x15c; bit0 set = done, bit2 set = error.
+Still unknown: what fills ctx[0x00..0x14] (probably Y/U/V and bitstream IOVAs) and the 0x2c bits.
