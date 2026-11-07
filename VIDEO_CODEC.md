@@ -551,3 +551,11 @@ interrupt (0x2c = 0) and 0x15c = 0; 0x38 reads 3 afterwards. The pixels are a re
 because the quantisation window was loaded with one raster value per word. From the library the window
 holds two 16-bit values per word in zigzag order (word j = Q[2j] | Q[2j+1] << 16, one table per 0x80 bytes);
 probe v5 loads it that way and starts a second time to see whether the next MCU row follows.
+
+Probe v5 result: the second start decoded the next MCU row into the same buffer (one start per MCU row,
+output stride = width), and 0x15c read 1 afterwards. The pixels of both runs are not the expected image:
+v4 (one low-half value per word) gave a smooth gradient, v5 (stock-style packing in zigzag order) gave
+saturated garbage, and neither matches a software decode of the same stream, so the mapping of the 64
+quantiser slots (32 words x 2 halves) onto coefficient positions is not what the stock code's read suggested.
+`tools/re/jpeg-window-probe.py` / `jpeg-window-fit.py` measure it directly: a hand-made stream of 64 blocks
+(one MCU row, 512x8) with one coefficient each and the window filled with slot numbers 1..64.
