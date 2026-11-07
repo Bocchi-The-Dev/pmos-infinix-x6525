@@ -53,8 +53,8 @@ a("r 0x154 1")
 a("w 0x158 0xff0005")                                  # stock: (read 0x154) | 0xff0000 | 5
 a("w 0x154 0x0")
 a("w 0x0c 0x%x" % ((((W + 15) >> 4) << 20) + W))
-a("w 0x10 0x%x" % ((0 << 29) | (1 << 13) | 1))        # GUESS: MCU counts 1x1
-a("w 0x14 0x%x" % (((W + 15) & ~15) & 0xfff8))
+a("w 0x10 0x%x" % ((4 << 29) | (2 << 13) | 2))        # format 4 = grey, 2x2 MCUs of 8x8 (JPEGFW_UpdateMiscFields)
+a("w 0x14 0x0")                                         # stock: 0 for formats other than 0 and 3
 a("w 0x04 0x10140080")                                  # HwTopRegCfg mode word (flags 0)
 a("w 0x18 0x%x" % len(scan))                            # GUESS: stock ctx[0x54]-0x21f
 a("wb 0x1c 1"); a("wb 0x20 2"); a("wb 0x24 2")

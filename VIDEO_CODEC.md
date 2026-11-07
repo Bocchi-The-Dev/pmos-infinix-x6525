@@ -534,3 +534,10 @@ after start (0x3c = 0x3b), 0x15c and 0x2c stay 0, outputs untouched, 0x168 = 0x1
 (so its bit 0 is not a busy flag). 0x18 does not take 0x72 when written out of order. v3 follows the
 stock order exactly: 0x158 = (0x154)|0xff0005 and 0x154 = 0 first, mode 0x10140080, 0x28 cleared then the
 stream address, final start word 0x10140281 (earlier guess 0x10140481 was wrong by 0x200).
+
+Probe v3 result: 0x18 takes the stream length once the mode word 0x10140080 is written first; start
+bit clears (0x10140281 reads 0x10140280) but 0x2c/0x15c stay 0 and no output is written; 0x158 reads 0
+after writing 0xff0005. Static findings used for v4: ctx[0x2e] format code: 0 = 4:2:0 (Y 2x2),
+1 = Y 4x1, 2 = 4:4:4, 3 = Y 2x1, 4 = grey, 5 = Y 1x2, 6 = Y 1x4 (table in JPEG_FWInitDecInput);
+ctx[0x42]/[0x44] = MCU columns/rows, aligned size = MCUs * MCU size; reg 0x10 = fmt<<29 | rows<<13 | cols;
+reg 0x14 = 0 for formats other than 0 and 3.
