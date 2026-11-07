@@ -484,7 +484,12 @@ the library copies it to) and what `0x48`/`0x4c` hold.
 - Quantisation window (`JPEGFW_AdjustQuantTbl_Dec`, hardware path): for each component table, 32 words
   are written to consecutive registers from `0x1000` (luma `0x1000..0x107c`, chroma `0x1080..0x10fc`;
   the register pointer is not reset between tables). Each word is `q[zigzag[2k]] | q[zigzag[2k+1]] << 16`
-  (two 8-bit entries). Next on the phone: the writable-bit mask of that window (`quant.lab`, all ones).
+  (two 8-bit entries). Measured on the phone: all 64 registers are full 32-bit read/write (all ones read back
+  as `0xffffffff`), so the window holds the two-entries-per-word values as is.
 - Still open before a decode attempt: the `0x04` mode word, the four start words `0x38..0x44`, the
   interrupt bits in `0x2c`, and which of the three buffer registers (`0x1c`, `0x20`, `0x24`) is the
   bitstream.
+- `JpegDec_HwTopRegCfg` mode word (`0x04`), from the disassembly: `0x10140000`, `+0x200` unless the scale
+  setting (`ctx 0xe0`) is 2, `+0x100` if that setting is above 0, `+0x80` (or `+0x4080` when `ctx 0x130` is 1),
+  `+0x2000` when `ctx 0x134` is 1, `|0x1000` when `ctx 0x138` is 1. With all flags clear that is
+  `0x10140280` (the unscaled, plain decode). `START_HW_DECODE` rewrites the word with the per-format value.
